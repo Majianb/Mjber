@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Personal Website</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-image: url('./backg.jpg');
+            background-size: cover;
+            background-position: center;
+            color: white;
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            /* 给背景添加虚化效果 */
+            backdrop-filter: blur(2px);
+        }
+
+       .ball {
+            position: absolute;
+            border-radius: 50%;
+            /* 给小球添加虚化效果 */
+            filter: blur(2px);
+            opacity: 0; /* 初始透明度为 0 */
+        }
+
+       .message {
+            position: relative;
+            z-index: 1;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+       .nav-bar {
+            position: relative;
+            z-index: 1;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+       .nav-tile {
+            width: 100px;
+            height: 100px;
+            background-color: rgba(255, 255, 255, 0.1);
+            margin: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+       .nav-tile:hover {
+            background-color: rgba(255, 255, 255, 0.2);
+        }
+
+       .footer {
+            position: absolute;
+            bottom: 10px;
+            left: 0;
+            right: 0;
+            text-align: center;
+            font-size: 14px;
+            color: rgba(255, 255, 255, 0.7);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="message">
+        <h1>欢迎来到我的个人网站</h1>
+        <p>努力、积累、更强</p>
+    </div>
+    <!-- <div class="nav-bar">
+        <div class="nav-tile">
+            <span>应用 1</span>
+        </div>
+        <div class="nav-tile">
+            <span>应用 2</span>
+        </div>
+    </div> -->
+    <script>
+        const container = document.body;
+
+        function getRandomColor() {
+            // 定义黄、橙、蓝、青颜色的色相范围
+            const colorRanges = [
+                { min: 0, max: 60 }, // 橙色和黄色范围
+                { min: 180, max: 240 }, // 青色范围
+                { min: 240, max: 300 } // 蓝色范围
+            ];
+
+            // 增加黄色暖色调被选中的概率
+            const randomValue = Math.random();
+            let randomRange;
+            if (randomValue < 0.8) {
+                // 60% 的概率选择黄色暖色调
+                randomRange = colorRanges[0];
+            } else {
+                // 40% 的概率选择其他颜色
+                const otherIndex = Math.floor(Math.random() * 2) + 1;
+                randomRange = colorRanges[otherIndex];
+            }
+
+            const hue = Math.floor(Math.random() * (randomRange.max - randomRange.min) + randomRange.min);
+            const saturation = 100;
+            const lightness = Math.floor(Math.random() * 30) + 60;
+            return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+        }
+
+        // Box - Muller 变换生成正态分布随机数
+        function getNormalRandom(mean, stdDev) {
+            let u = 0, v = 0;
+            while (u === 0) u = Math.random(); // 确保 u 不为 0
+            while (v === 0) v = Math.random();
+            let z0 = Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+            return z0 * stdDev + mean;
+        }
+
+        function createBall(isLarge) {
+            const middleX = window.innerWidth / 2;
+            const middleY = window.innerHeight * 3 / 5;
+            const leftPeakX = window.innerWidth / 4;
+            const rightPeakX = 3 * window.innerWidth / 4;
+            const peakRange = window.innerWidth * 0.15;
+
+            let startX;
+            if (isLarge) {
+                const rand = Math.random();
+                if (rand < 0.8) {
+                    if (Math.random() < 0.5) {
+                        startX = leftPeakX + (Math.random() * peakRange - peakRange / 2);
+                    } else {
+                        startX = rightPeakX + (Math.random() * peakRange - peakRange / 2);
+                    }
+                } else {
+                    startX = Math.random() * window.innerWidth;
+                }
+            } else {
+                startX = Math.random() * window.innerWidth;
+            }
+
+            // 生成 y 轴位置，使其靠近中线
+            const stdDev = window.innerHeight * 0.1; // 标准差，可根据需要调整
+            let startY = getNormalRandom(middleY, stdDev);
+            // 确保 y 轴位置在页面内
+            startY = Math.max(0, Math.min(window.innerHeight, startY));
+
+            const ball = document.createElement('div');
+            ball.classList.add('ball');
+
+            let size;
+            if (isLarge) {
+                size = Math.random() * 70 + 10; 
+            } else {
+                size = Math.random() * 10 + 5; 
+            }
+            ball.style.width = `${size}px`;
+            ball.style.height = `${size}px`;
+
+            ball.style.left = `${startX - size / 2}px`;
+            ball.style.top = `${startY - size / 2}px`;
+
+            const color = getRandomColor();
+            ball.style.background = `radial-gradient(circle at 50% 50%, ${color}, rgba(0, 0, 0, 0))`;
+
+            const angle = Math.random() * 2 * Math.PI;
+            const distance = Math.random() * Math.min(window.innerWidth, window.innerHeight) * 0.5;
+            const endX = startX + distance * Math.cos(angle);
+            const endY = startY + distance * Math.sin(angle);
+
+            const duration = Math.random() * 10 + 3;
+            ball.animate([
+                { transform: `translate(0, 0)`, opacity: 0 }, // 初始透明度为 0
+                { transform: `translate(0, 0)`, opacity: 1 }, // 显示出来
+                { transform: `translate(${endX - startX}px, ${endY - startY}px)`, opacity: 0 } // 移动并消失
+            ], {
+                duration: duration * 1000,
+                easing: 'linear',
+                fill: 'forwards'
+            });
+
+            container.appendChild(ball);
+            setTimeout(() => {
+                container.removeChild(ball);
+            }, duration * 1000);
+        }
+
+        setInterval(() => {
+            createBall(true); // 生成大球
+            if (Math.random() < 0.9) { // 70% 的概率生成小球
+                createBall(false);
+            }
+        }, 20);
+    </script>
+    <div class="footer">
+        <p>网页作者: mjb</p>
+        <p>邮箱: 2358389489@qq.com</p>
+        <p>服务器: 精简分布式协程服务器框架 mjber-v0.6</p>
+        <p>GitHub 地址: <a href="#" style="color: rgba(255, 255, 255, 0.7);">请替换为实际地址</a></p>
+    </div>
+</body>
+
+</html>    
