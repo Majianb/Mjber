@@ -22,7 +22,7 @@
 */
 
 
-
+// 单例模式
 class IOScheduler {
 public:
     IOScheduler(size_t threadCount = 1):threadPool(threadCount){};
@@ -39,7 +39,8 @@ public:
     template<typename F,typename... Args>
     void addTask(F&& f,Args&&... args);
 
-
+    //
+    
 
 
     //获取下一个需要执行的
@@ -60,7 +61,9 @@ template<typename F,typename... Args>
 void IOScheduler::addTask(F&& f,Args&&... args){
     std::shared_ptr<Fiber> work_fiber = Fiber::Create(f,args...);
     auto rtask = [](std::shared_ptr<Fiber> fiber){
-        fiber->resume();
+        std::cout<<"fiber thread"<<std::endl;
+        fiber->start();
+        std::cout<<"fiber out"<<std::endl;
     };
     threadPool.enqueue(rtask,work_fiber);
 }
@@ -87,6 +90,7 @@ public:
             throw std::runtime_error("Failed to create IO Completion Port");
         }
         threadPool.enqueue([this] {
+            std::cout<<"scheduler thread begin";
             this->run();
         });
     }
@@ -101,7 +105,6 @@ public:
             throw std::runtime_error("Failed to associate handle with IO Completion Port");
         }
     }
-
 
 private:
     // 调度流程

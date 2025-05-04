@@ -21,7 +21,23 @@
 */
 // 处理函数接收请求返回响应
 typedef std::function<std::shared_ptr<HttpResponse>(std::shared_ptr<HttpRequest>)> RouteHandler;
+typedef std::vector<std::pair<std::string,RouteHandler>> RouteRules;
+typedef std::pair<std::string,RouteHandler> RouteRule;
+/*
+    设置不同的匹配规则
+    1. 完全匹配：只有url完全匹配才会调用
+    2. 通配匹配：提供/ ,则作为一个候选
+    3. 强制匹配：只要/* ,则直接匹配
 
+    因此
+    插入时：
+        按/切分，对于一个新字段插入，沿途节点均设置为缺省的方法
+    查询时：
+        按/切分，查询直到底部，每次都记录沿途的缺省方法
+
+
+        
+*/
 // 每一层结构w为一个处理函数，可以获得请求消息的指针
 class RouteTreeNode{
 public:
@@ -58,7 +74,7 @@ public:
                     suburl = url.substr(lastpos);
                 else
                     suburl = url.substr(lastpos,pos-lastpos);
-                lastpos = pos;
+                lastpos = pos==std::string::npos?std::string::npos:pos+1;
                 //查找是否有字段，有则进入
                 if(temp->nextTable.find(suburl)!=temp->nextTable.end()){
                     temp = temp->nextTable.find(suburl)->second;
@@ -75,6 +91,7 @@ public:
     }
     //根据路径查找处理函数
     RouteHandler find(const std::string& url){
+
         auto temp = head;
         size_t pos,lastpos;
         RouteHandler candidateFunc = defaultHandler;
@@ -87,19 +104,22 @@ public:
                 suburl = url.substr(lastpos);
             else
                 suburl = url.substr(lastpos,pos-lastpos);
-            lastpos = pos;
-            // then reseach
-            // if we can
-            if(temp->nextTable.find(suburl)!=temp->nextTable.end()){
+            lastpos = pos==std::string::npos?std::string::npos:pos+1;
+            // 先查找候选
+            if(temp->nextTable.find("")!=temp->nextTable.end())
+                candidateFunc = temp->nextTable.find("")->second->handler;
+            // 1. 强制匹配的
+            if(temp->nextTable.find("*")!=temp->nextTable.end()){
+                return temp->nextTable.find("*")->second->handler;
+            }
+            // 3. 完全匹配的
+            else if(temp->nextTable.find(suburl)!=temp->nextTable.end()){
                 temp = temp->nextTable.find(suburl)->second;
                 continue;
             }
-            else{ //otherwise use default
-                if(temp->nextTable.find("*")!=temp->nextTable.end())
-                    return temp->nextTable.find("*")->second->handler;
-                else
-                    return candidateFunc;
-            }
+            // 3. 模糊匹配的
+            else
+                return candidateFunc;
 
         }
         return temp->handler;
@@ -128,12 +148,12 @@ public:
     // 接口
     int setup(); //启动
     int setRoute(std::vector<std::pair<std::string,RouteHandler>> url_handlers); //设置路由
-    
+    void setDefaultHandler(RouteHandler);
 private:
 
     std::vector<SocketWrapper> clients; //用户的连接
     std::shared_ptr<SocketWrapper> serverSocket; 
-    std::shared_ptr<FiberScheduler> scheduler;
+    // std::shared_ptr<IOScheduler> scheduler;
     RouteHandler defaultHandler; //默认路由的处理
     RouteTree  routeTable; //路由表
     static void worker(HttpServer* p, std::shared_ptr<SocketWrapper> socket); //处理流程
@@ -156,28 +176,37 @@ HttpServer::HttpServer(const std::string& addr,uint16_t port,int thread_num=-1):
 
     // 2. 构建socket
     serverSocket = SocketWrapper::Create(SocketWrapper::Type::TCP,addr,port);
+    LOG_STREAM<<"http server create  socket on "<<addr<<":"<<port<<INFOLOG;
     // 3. 初始化调度器
-    if(thread_num>0) globalScheduler = std::make_shared<FiberScheduler>(thread_num);
+    if(thread_num>1) globalScheduler = std::make_shared<FiberScheduler>(thread_num);
     
 }
 
 int HttpServer::setRoute(std::vector<std::pair<std::string,RouteHandler>> url_handlers){
-    auto routeTable = RouteTree(url_handlers);
+    routeTable = RouteTree(url_handlers);
     routeTable.setDefaultHandler(defaultHandler);
     return 1;
 }
 
 // server对请求的的处理流程
 void HttpServer::worker(HttpServer* p, std::shared_ptr<SocketWrapper> c_socket){
-    // 1.先接收消息
-    auto  httpsocket = std::make_shared<HttpScoket>(c_socket);
-    std::shared_ptr<HttpRequest> request = std::make_shared<HttpRequest>();
-    httpsocket->readRequest(request);
-    // 2.根据路由进行下一步的操作
-    RouteHandler handler = p->routeTable.find(request->url);
-    auto res = handler(request);
-    // 3.返回响应
-    httpsocket->writeResponse(res);
+    while(true){
+        // 1.先接收消息
+        auto  httpsocket = std::make_shared<HttpScoket>(c_socket);
+        std::shared_ptr<HttpRequest> request = std::make_shared<HttpRequest>();
+        httpsocket->readRequest(request);
+
+        LOG_STREAM<<"get url:"<<request->url<<"from"<<c_socket->getIP()<<INFOLOG;
+
+        // 2.根据路由进行下一步的操作
+        RouteHandler handler = p->routeTable.find(request->url);
+        auto res = handler(request);
+
+        LOG_STREAM<<"return "<<res->m_reason<<"from"<<c_socket->getIP()<<INFOLOG;
+
+        // 3.返回响应
+        httpsocket->writeResponse(res);
+    }
 }
 
 
@@ -193,11 +222,22 @@ int HttpServer::setup(){
             throw std::runtime_error("Failed to accept");
         }
         else{
-            LOG_STREAM<<"Get a connect: "<<INFOLOG;
-            if(scheduler) scheduler->addTask(worker,this,newClient);
+            LOG_STREAM<<"Get a connect from: "<<newClient->getIP()<<INFOLOG;
+            if(globalScheduler) globalScheduler->addTask(worker,this,newClient);
             else worker(this,newClient);
         }
 
     }   
 }
+
+
+
+
+void HttpServer::setDefaultHandler(RouteHandler h){
+    defaultHandler = h;
+    routeTable.setDefaultHandler(defaultHandler);
+}
+
+
+
 #endif 

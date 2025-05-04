@@ -36,7 +36,7 @@ enum class FiberState {
 
 
 
-class Fiber : public std::enable_shared_from_this<Fiber> {
+class Fiber: public std::enable_shared_from_this<Fiber>{
 public:
     using ptr = std::shared_ptr<Fiber>;
     using Func = std::function<void()>;
@@ -78,16 +78,17 @@ private:
     Func m_task;
 
     static size_t m_stack_size;
-    static thread_local std::shared_ptr<Fiber> mainFiber;
-    static thread_local std::shared_ptr<Fiber> currentFiber;
+    // static thread_local std::shared_ptr<Fiber> mainFiber;
+    // static thread_local std::shared_ptr<Fiber> currentFiber;
 };    
 
 static std::atomic<uint64_t> s_Fiber_id {0};
 size_t Fiber::m_stack_size = 1024*1024;
-thread_local std::shared_ptr<Fiber> Fiber::currentFiber = nullptr;  // 代表当前正在执行的协程
-thread_local std::shared_ptr<Fiber> Fiber::mainFiber = nullptr;
 
+thread_local std::shared_ptr<Fiber> currentFiber = nullptr;  // 代表当前正在执行的协程
+thread_local std::shared_ptr<Fiber> mainFiber = nullptr;
 
+// 主协程
 Fiber::Fiber(): m_id(++s_Fiber_id), m_stack(nullptr){
     m_state = FiberState::EXEC;
     m_ctx.firstIn = 0;
@@ -113,18 +114,19 @@ Fiber::Fiber(Fn&& intask, Args&&... args):m_id(++s_Fiber_id){
 
     m_ctx.rsp = m_stack + m_stack_size - sizeof(void*);
     m_state = FiberState::READY; //就绪
-
 }
 
 Fiber::~Fiber() {
     if(!m_stack) delete[] m_stack;
 }
+
+// 工厂函数
 template <typename Fn, typename... Args>
 Fiber::ptr Fiber::Create(Fn&& intask, Args&&... args){
 
     // 主协程懒加载
-    if (Fiber::mainFiber==nullptr) {
-        Fiber::mainFiber = std::make_shared<Fiber>();
+    if (mainFiber==nullptr) {
+        mainFiber = std::make_shared<Fiber>();
         // // 主协程首次需要保存上下文
         // ctx_save(&(mainFiber->m_ctx));
     }
@@ -134,18 +136,26 @@ Fiber::ptr Fiber::Create(Fn&& intask, Args&&... args){
 
 
 // 启动工作协程
-void Fiber::start() { 
+// 由主执行流执行
+void Fiber::start() {
+    // 检查当前线程是否有对应的主协程
+    if(mainFiber==nullptr) mainFiber=std::make_shared<Fiber>(); 
     m_state = FiberState::EXEC;
     SetThis(shared_from_this());
-    ctx_swap(&(Fiber::mainFiber->m_ctx),&(m_ctx));
+    // 转到工作流
+    ctx_swap(&(mainFiber->m_ctx),&(m_ctx));
 }
 
 // 恢复工作协程执行
+// 由主执行流执行
 void Fiber::resume() {
+    // 检查当前线程是否有对应的主协程
+    if(mainFiber==nullptr) mainFiber=std::make_shared<Fiber>(); 
     if (m_state != FiberState::HOLD) {
         return;
     }
     m_state = FiberState::EXEC;
+
     // 回到工作协程上下文
     SetThis(shared_from_this());
     ctx_swap(&(mainFiber->m_ctx),&(m_ctx));
@@ -153,6 +163,7 @@ void Fiber::resume() {
 
 // 暂停工作协程执行,回到下一个协程
 // 如果没有则回到主协程
+// 由工作协程执行流执行
 void Fiber::yield(Fiber::ptr nextfiber=nullptr) {
     if (m_state != FiberState::EXEC) {
         return;
@@ -163,7 +174,7 @@ void Fiber::yield(Fiber::ptr nextfiber=nullptr) {
     }
     else{
         SetThis(mainFiber);
-        ctx_swap(&m_ctx,&(Fiber::mainFiber->m_ctx));
+        ctx_swap(&m_ctx,&(mainFiber->m_ctx));
     }
 }
 
@@ -177,10 +188,11 @@ void Fiber::mainFunc(Fiber* fiber) {
     ctx_swap(&(fiber->m_ctx),&(mainFiber->m_ctx));
 }
 
-
+// 设置当前线程的工作协程
 void Fiber::SetThis(ptr co) {
     currentFiber = co;
 }
+// 得到当前线程的工作协程
 Fiber::ptr Fiber::GetThis(){
     if(currentFiber) return currentFiber;
     else return nullptr;

@@ -62,15 +62,9 @@ public:
         }
         auto rs = std::make_shared<SocketWrapper>(fd, type, domain);
         rs->bind(addr,port);
+        rs->ip_ = addr;
+        rs->port_ = port;
         return rs;
-        // 设置非阻塞模式
-        // #ifdef _WIN32
-        //     u_long mode = 1;
-        //     ioctlsocket(fd, FIONBIO, &mode);
-        // #else
-        //     const int flags = fcntl(fd, F_GETFL, 0);
-        //     fcntl(fd, F_SETFL, flags | O_NONBLOCK);
-        // #endif
     }
 
     explicit SocketWrapper(int fd, Type type, int domain) 
@@ -98,18 +92,19 @@ public:
             throw std::system_error(errno, std::system_category());
             return false;
         }
+        ip_ = addr;
+        port_ = port;
         return true;
     }
 
     // 监听连接,backlog表示监听的最大队列
     bool listen(int backlog = SOMAXCONN) {
         if (type_ != Type::TCP) {
-            // Logger::error("listen() is only available for TCP sockets");
+            LOG_STREAM<<"listen() is only available for TCP sockets"<<errno<<ERRORLOG;
             return false;
         }
         if (::listen(fd_, backlog) == -1) {
-            // Logger::error("Listen failed: {}", strerror(errno));
-            LOG_STREAM<<"Listen failed: "<<errno<<INFOLOG;
+            LOG_STREAM<<"Listen failed: "<<errno<<ERRORLOG;
             throw std::system_error(errno, std::system_category());
             return false;
         }
@@ -119,9 +114,7 @@ public:
     // 接受连接，返回一个新的连接
     std::shared_ptr<SocketWrapper> accept() {
         if (type_ != Type::TCP) {
-            // Logger::error("accept() is only available for TCP sockets");
-            LOG_STREAM<<"accept() is only available for TCP sockets"<<INFOLOG;
-            // return SocketWrapper(-1, Type::TCP, AF_INET);
+            LOG_STREAM<<"accept() is only available for TCP sockets"<<ERRORLOG;
             return nullptr;
         }
         sockaddr_storage client_addr{};
@@ -132,20 +125,29 @@ public:
             const char* errorMsgCStr = std::strerror(errno);
             std::string errorMsg = std::string(errorMsgCStr);
             std::cout<<"error"<<errorMsg;
-            LOG_STREAM<<"Accept failed: "<<errorMsg<<INFOLOG;
-            // Logger::error("Accept failed: {}", strerror(errno));
-            // return SocketWrapper(-1, Type::TCP, AF_INET);
+            LOG_STREAM<<"Accept failed: "<<errorMsg<<ERRORLOG;
             return nullptr;
         }
-        // 设置非阻塞模式
-        // #ifdef _WIN32
-        //     u_long mode = 1;
-        //     ioctlsocket(client_fd, FIONBIO, &mode);
-        // #else
-        //     const int flags = fcntl(client_fd, F_GETFL, 0);
-        //     fcntl(client_fd, F_SETFL, flags | O_NONBLOCK);
-        // #endif
-        return std::make_shared<SocketWrapper>(client_fd, Type::TCP, domain_);
+        // 维护地址
+        std::string client_ip;
+        uint16_t client_port = 0;
+        if (domain_ == AF_INET) {
+            sockaddr_in* client_addr_in = reinterpret_cast<sockaddr_in*>(&client_addr);
+            char ip_str[INET_ADDRSTRLEN];
+            inet_ntop(AF_INET, &client_addr_in->sin_addr, ip_str, INET_ADDRSTRLEN);
+            client_ip = ip_str;
+            client_port = ntohs(client_addr_in->sin_port);
+        } else if (domain_ == AF_INET6) {
+            sockaddr_in6* client_addr_in6 = reinterpret_cast<sockaddr_in6*>(&client_addr);
+            char ip_str[INET6_ADDRSTRLEN];
+            inet_ntop(AF_INET6, &client_addr_in6->sin6_addr, ip_str, INET6_ADDRSTRLEN);
+            client_ip = ip_str;
+            client_port = ntohs(client_addr_in6->sin6_port);
+        }
+        auto temp = std::make_shared<SocketWrapper>(client_fd, Type::TCP, domain_);
+        temp->ip_ = std::move(client_ip);
+        temp->port_ = client_port;
+        return temp;
     }
 
     // 异步连接（协程友好）
@@ -203,13 +205,15 @@ public:
         DWORD res=0;
         WSAOVERLAPPED overlapped={0};
         overlapped.hEvent = nullptr;
-        // int r = WSARecv(fd_,&wsabuf,1,&res,0,&overlapped,nullptr);
+
         if(fd_ == INVALID_SOCKET){
             std::cout<<"incalid socket"<<std::endl;
             return -1;
         }
-        
-        int r = WSARecv(fd_,&wsabuf,1,&res,&flags,&overlapped,nullptr);
+        // 根据是否启用协程判断是否启用异步
+        int r;
+        if(globalScheduler) r = WSARecv(fd_,&wsabuf,1,&res,&flags,&overlapped,nullptr);
+        else r = WSARecv(fd_,&wsabuf,1,&res,&flags,nullptr,nullptr);
         // 错误处理
         if (r == SOCKET_ERROR) {
             int error = WSAGetLastError();
@@ -245,8 +249,12 @@ public:
         return res;
     }
 
-
-
+    std::string& getIP(){
+        return ip_;
+    }
+    uint16_t getPort(){
+        return port_;
+    }
 
 
     // 设置套接字选项==================================
@@ -310,7 +318,8 @@ private:
     Type type_;
     int domain_;
     bool non_blocking_ = true;
-    
+    std::string ip_;
+    uint16_t port_;
 };
 
 // 静态成员初始化

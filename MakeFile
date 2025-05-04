@@ -1,0 +1,37 @@
+# 编译器和编译选项
+CXX = g++
+CXXFLAGS = -std=c++17 -Wall -Wextra -g
+
+# 源文件和目标文件
+SRCDIR = src
+SRC = $(wildcard $(SRCDIR)/*.cpp)
+OBJ = $(SRC:.cpp=.o)
+
+# 可执行文件名称
+EXEC = mjber_server
+
+# 头文件目录
+INCLUDES = -I./mjber
+
+# 链接选项
+# 检查是否为Windows平台，如果是则添加 -lws2_32
+ifeq ($(OS),Windows_NT)
+    LDFLAGS = -lws2_32
+else
+    LDFLAGS = 
+endif
+
+# 默认目标
+all: $(EXEC)
+
+# 生成可执行文件
+$(EXEC): $(OBJ)
+    $(CXX) $(CXXFLAGS) $(INCLUDES) $(OBJ) -o $(EXEC) $(LDFLAGS)
+
+# 生成目标文件
+%.o: %.cpp
+    $(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@
+
+# 清理规则
+clean:
+    rm -f $(OBJ) $(EXEC)    

@@ -13,7 +13,7 @@ int main(){
     std::string url = "/a";
     a.push_back(std::make_pair(url,func));
     
-    HttpServer myserver("127.0.0.1",4000);
+    HttpServer myserver("127.0.0.1",4000,4);
     myserver.setRoute(a);
     myserver.setup();
 
