@@ -194,15 +194,19 @@ void HttpServer::worker(HttpServer* p, std::shared_ptr<SocketWrapper> c_socket){
         // 1.先接收消息
         auto  httpsocket = std::make_shared<HttpScoket>(c_socket);
         std::shared_ptr<HttpRequest> request = std::make_shared<HttpRequest>();
-        httpsocket->readRequest(request);
+        int r = httpsocket->readRequest(request);
+        if(r==-1){
+            LOG_STREAM<<"disconnect from: "<<c_socket->getIP()<<INFOLOG;
+            return;
+        }
 
-        LOG_STREAM<<"get url:"<<request->url<<"from"<<c_socket->getIP()<<INFOLOG;
+        LOG_STREAM<<"get url:"<<request->url<<"from "<<c_socket->getIP()<<INFOLOG;
 
         // 2.根据路由进行下一步的操作
         RouteHandler handler = p->routeTable.find(request->url);
         auto res = handler(request);
 
-        LOG_STREAM<<"return "<<res->m_reason<<"from"<<c_socket->getIP()<<INFOLOG;
+        LOG_STREAM<<"return "<<res->m_reason<<" to "<<c_socket->getIP()<<INFOLOG;
 
         // 3.返回响应
         httpsocket->writeResponse(res);

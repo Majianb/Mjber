@@ -291,11 +291,17 @@ public:
         ss<<t;
         return *this;
     }
+    
+    LogStream& operator<<(std::string t){
+        ss<<t.c_str();
+        return *this;
+    }
     void operator<<(LogLevel level){
         auto res = ss.str();
         ss.str("");
         LOG.log(level,res);
     }
+
     static LogStream& getLogStream(){
         static LogStream log_stream;
         return log_stream;

@@ -189,6 +189,8 @@ public:
     }
 
     // 读时直接切到下一协程，等待数据准备完毕后返回
+
+    #ifdef _WIN32
     // win下需要先将句柄注册到端口
     // wsarecv进行异步操作，传入缓存区，关联的IO数据overlapped
     ssize_t read(char* buf,ssize_t len=1024) {
@@ -197,7 +199,7 @@ public:
         if(globalScheduler){
             globalScheduler->addEvent(fd_,0,Fiber::GetThis());
         }
-
+    
         WSABUF wsabuf;
         wsabuf.buf = buf;
         wsabuf.len = len;
@@ -206,8 +208,8 @@ public:
         WSAOVERLAPPED overlapped={0};
         overlapped.hEvent = nullptr;
 
+        // 如果连接已经关闭
         if(fd_ == INVALID_SOCKET){
-            std::cout<<"incalid socket"<<std::endl;
             return -1;
         }
         // 根据是否启用协程判断是否启用异步
@@ -229,12 +231,43 @@ public:
                 if(globalScheduler){
                     globalScheduler->wait();
                 }
-                return res;
+                LOG_STREAM<<"fiber "<<std::to_string(Fiber::GetThis()->getID())<<" get resv res "<<std::to_string(Fiber::GetThis()->getIORes())<<DEBUGLOG;
+                return Fiber::GetThis()->getIORes();
             }
         }
         return res;
+    
     }
+    #else
+    //linux下的不需要特殊处理
+    ssize_t read(char* buf,ssize_t len=1024) {
 
+        // 如果连接已经关闭
+        if(fd_ == INVALID_SOCKET){
+            return -1;
+        }
+        //注册到调度器
+        if(globalScheduler){
+            globalScheduler->addEvent(fd_,EPOLLOUT,Fiber::GetThis());
+        }
+        //接收调度,等待可以时会返回
+        if(globalScheduler){
+            globalScheduler->wait();
+        }
+        // 阻塞读
+        int r = ::read(fd_, buf, len);
+        // 错误处理，请改成linux下的
+        if (r == -1) {
+            LOG_STREAM<<"soccket read failed: "<< error <<ERRORLOG;
+            closesocket(fd_);
+            return -1;
+        }
+        return r;
+    
+    }
+    #endif
+
+    #ifdef _WIN32
     //写时也是同样
     size_t write(const char* buf,size_t len) {
         WSABUF wsabuf;
@@ -245,10 +278,39 @@ public:
         OVERLAPPED overlapped;
         int r = WSASend(fd_,&wsabuf,1,&res,flags,nullptr,nullptr);
         //错误处理
-        
+
+        // if(globalScheduler){
+        //     globalScheduler->wait();
+        // }
+        LOG_STREAM<<"fiber "<<std::to_string(Fiber::GetThis()->getID())<<" get send res "<<std::to_string(res)<<DEBUGLOG;
         return res;
     }
-
+    #else
+    //LINUX
+    size_t write(const char* buf,size_t len) {
+        // 如果连接已经关闭
+        if(fd_ == INVALID_SOCKET){
+            return -1;
+        }
+        //注册到调度器
+        if(globalScheduler){
+            globalScheduler->addEvent(fd_,EPOLLIN,Fiber::GetThis());
+        }
+        //接收调度,等待可以时会返回
+        if(globalScheduler){
+            globalScheduler->wait();
+        }
+        // 阻塞读
+        int r = ::read(fd_, buf, len);
+        // 错误处理，请改成linux下的
+        if (r == -1) {
+            LOG_STREAM<<"soccket read failed: "<< error <<ERRORLOG;
+            closesocket(fd_);
+            return -1;
+        }
+        return r;
+    }
+    #endif
     std::string& getIP(){
         return ip_;
     }

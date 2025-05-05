@@ -25,7 +25,7 @@ std::shared_ptr<HttpResponse> getPublic(std::shared_ptr<HttpRequest> request){
 
     std::string path;
     path = "../public" + request->url.substr(request->url.find("public")+6);
-    
+    LOG_STREAM<<"request for public file: "<<path<<INFOLOG;
     
     if (!fileExists(path)){
 
@@ -37,6 +37,7 @@ std::shared_ptr<HttpResponse> getPublic(std::shared_ptr<HttpRequest> request){
         return res;
     }
     else{
+        LOG_STREAM<<"response to public file: "<<path<<INFOLOG;
         std::ifstream page(path,std::ios::binary);
         std::string content((std::istreambuf_iterator<char>(page)), std::istreambuf_iterator<char>());
         std::shared_ptr<HttpResponse> res = std::make_shared<HttpResponse>();
@@ -57,7 +58,7 @@ int main(){
 
 
     LOG_ADD_CONSOLE_APPENDER();
-    auto server = HttpServer("127.0.0.1",4000,1);
+    auto server = HttpServer("127.0.0.1",4000,4);
     
     RouteRule rule = std::make_pair<std::string,RouteHandler>("/public/*",getPublic);
     RouteRules rules(1,rule);

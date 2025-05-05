@@ -75,7 +75,7 @@ ThreadPool::ThreadPool(size_t threadCount) : stop(false) {
                     task = std::move(tasks.front());
                     tasks.pop();
                 }
-                std::cout<<"thread begin"<<std::endl;
+                
                 task();
             }
         });

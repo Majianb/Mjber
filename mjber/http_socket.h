@@ -228,7 +228,7 @@ int HttpScoket::readRequest(std::shared_ptr<HttpRequest> request){
     size_t totol = 0;
     while(true){
         size_t mlen = socket->read(buf,1024);
-        if(mlen<=0) break;
+        if(mlen<=0) return -1;
         m.append(buf,mlen);
         //每次新的数据进行查找
         size_t end_pos = m.find("\r\n\r\n",totol);

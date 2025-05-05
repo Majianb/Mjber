@@ -2,12 +2,13 @@
 #define SCHEDULER
 #include <iostream>
 #include <vector>
+#include <ctime>
 #include <map>
 #include <unordered_map>
-
+#include <thread>
 #include "thread_pool.h"
 #include "fiber.h"
-
+#include "logger.h"
 
 // 线程池可以不断压入任务
 
@@ -18,8 +19,21 @@
     接口：
         addTask() //加入任务
         addEvent() //注册事件并阻塞自己
+    需要一个表维护fd和fiber的对应关系
     
 */
+
+
+/*
+    事件类型，关联的协程，时间
+*/
+struct IOEvent{
+    std::shared_ptr<Fiber> fiber_;
+    enum IOType{
+        READ,WRITE
+    } type_;
+    std::time_t time_;
+};
 
 
 // 单例模式
@@ -32,7 +46,9 @@ public:
     virtual void addEvent(int fd, uint32_t events, std::shared_ptr<Fiber> fiber) = 0;
     //调用的协程会阻塞自己来让线程进行其他工作
     void wait(){
+        LOG_STREAM<<"Fiber yield"<<INFOLOG;
         Fiber::GetThis()->yield();
+        LOG_STREAM<<"Fiber resume"<<INFOLOG;
     }
     
     //添加任务
@@ -47,10 +63,10 @@ public:
     static std::shared_ptr<IOScheduler> getIOScheduler(size_t threadCount);
     static std::shared_ptr<IOScheduler> gloabalIOScheduler;
 protected:
-    std::mutex mutex_; //为了维护队列的访问
+    std::mutex registryMutex; //为了维护队列的访问
     std::queue<Fiber::ptr> ready_list;
     ThreadPool threadPool;
-    
+    std::map<int,IOEvent> fdRegistry;
 };
 
 // std::shared_ptr<IOScheduler> IOScheduler::gloabalIOScheduler = std::make_shared<IOScheduler>(4);
@@ -61,9 +77,9 @@ template<typename F,typename... Args>
 void IOScheduler::addTask(F&& f,Args&&... args){
     std::shared_ptr<Fiber> work_fiber = Fiber::Create(f,args...);
     auto rtask = [](std::shared_ptr<Fiber> fiber){
-        std::cout<<"fiber thread"<<std::endl;
+        LOG_STREAM<<"Fiber "<< std::to_string(fiber->getID())<<" start"<<DEBUGLOG;
         fiber->start();
-        std::cout<<"fiber out"<<std::endl;
+        LOG_STREAM<<"Fiber "<< std::to_string(fiber->getID())<<" end"<<DEBUGLOG;
     };
     threadPool.enqueue(rtask,work_fiber);
 }
@@ -89,10 +105,8 @@ public:
         if (iocp == NULL) {
             throw std::runtime_error("Failed to create IO Completion Port");
         }
-        threadPool.enqueue([this] {
-            std::cout<<"scheduler thread begin";
-            this->run();
-        });
+        //  启动一个调度线程
+        worker = std::thread(&WinIOScheduler::run, this);
     }
 
     ~WinIOScheduler() {
@@ -100,9 +114,21 @@ public:
     }
 
     void addEvent(int fd, uint32_t events, std::shared_ptr<Fiber> fiber) override {
-        HANDLE handle = reinterpret_cast<HANDLE>(fd);
-        if (CreateIoCompletionPort(handle, iocp, reinterpret_cast<ULONG_PTR>(fiber.get()), 0) == NULL) {
-            throw std::runtime_error("Failed to associate handle with IO Completion Port");
+        
+
+        std::lock_guard<std::mutex> lock(registryMutex);
+        if (fdRegistry.find(fd) != fdRegistry.end()) {
+            return;
+        }
+        else{
+            HANDLE handle = reinterpret_cast<HANDLE>(fd);
+            if (CreateIoCompletionPort(handle, iocp, reinterpret_cast<ULONG_PTR>(fiber.get()), 0) == NULL) {
+                DWORD errorCode = GetLastError();
+                std::string errorMsg = "Failed to associate handle with IO Completion Port. Error code: " + std::to_string(errorCode);
+                throw std::runtime_error(errorMsg);
+            }
+            fdRegistry[fd] = fiber;
+            LOG_STREAM<<"fiber "<<std::to_string(fiber->getID())<<" add event"<<DEBUGLOG;
         }
     }
 
@@ -117,6 +143,8 @@ private:
             if (GetQueuedCompletionStatus(iocp, &bytesTransferred, &completionKey, &overlapped, INFINITE)) {
                 Fiber* fiber = reinterpret_cast<Fiber*>(completionKey);
                 if (fiber) {
+                    LOG_STREAM<<"fiber "<<std::to_string(fiber->getID())<<"get event"<<std::to_string(bytesTransferred)<<DEBUGLOG;
+                    fiber->setIORes(bytesTransferred);
                     auto rtask = [](Fiber* fiber){
                         fiber->resume();
                     };
@@ -126,8 +154,12 @@ private:
         }
     }
 
+    std::thread worker;
     HANDLE iocp;
+    std::unordered_map<int, std::shared_ptr<Fiber>> fdRegistry; // 注册表
+    std::mutex registryMutex; // 保护注册表的互斥锁
 };
+
 #else
 
 #include <sys/epoll.h>
@@ -140,11 +172,7 @@ public:
         if (epollFd == -1) {
             throw std::runtime_error("Failed to create epoll instance");
         }
-        for (size_t i = 0; i < threadCount; ++i) {
-            threadPool.enqueue([this] {
-                this->run();
-            });
-        }
+        worker = std::thread(&LinuxIOScheduler::run, this);
     }
 
     ~LinuxIOScheduler() {
@@ -158,10 +186,6 @@ public:
         if (epoll_ctl(epollFd, EPOLL_CTL_ADD, fd, &ev) == -1) {
             throw std::runtime_error("Failed to add event to epoll");
         }
-        {
-            std::unique_lock<std::mutex> lock(mutex);
-            fiberMap[fd] = fiber;
-        }
     }
 
 private:
@@ -170,29 +194,26 @@ private:
         while (true) {
             int nfds = epoll_wait(epollFd, events, 10, -1);
             if (nfds == -1) {
-                std::cerr << "epoll_wait error" << std::endl;
+                LOG_STREAM<<"epoll_wait error"<<ERRORLOG;
                 continue;
             }
             for (int i = 0; i < nfds; ++i) {
                 Fiber* fiber = static_cast<Fiber*>(events[i].data.ptr);
                 if (fiber) {
-                    {
-                        std::unique_lock<std::mutex> lock(mutex);
-                        auto it = fiberMap.find(events[i].data.fd);
-                        if (it != fiberMap.end()) {
-                            fiberMap.erase(it);
-                        }
+                    if (fiber) {
+                        LOG_STREAM<<"fiber "<<std::to_string(fiber->getID())<<" get event"<<DEBUGLOG;
+                        auto rtask = [](Fiber* fiber){
+                            fiber->resume();
+                        };
+                        threadPool.enqueue(rtask,fiber);
                     }
-                    fiber->start();
                 }
             }
         }
     }
 
     int epollFd;
-    ThreadPool threadPool;
-    std::unordered_map<int, std::shared_ptr<Fiber>> fiberMap;
-    std::mutex mutex;
+    std::thread worker;
 };
 #endif
 

@@ -6,6 +6,7 @@
 #include <atomic>
 #include <utility>
 #include <type_traits>
+#include <map>
 // 新建一个协程：使用构造函数传入函数
 // 此时新建一个用于执行该函数的上下文
 // start时开始执行任务协程，转到任务协程上下文继续执行
@@ -60,7 +61,9 @@ public:
 
     // 获取当前协程状态
     FiberState getState() const { return m_state; }
-
+    uint64_t getID() const { return m_id; }
+    size_t getIORes() const { return io_res; }
+    void setIORes(size_t res) { this->io_res = res;}
     // 设置当前正在执行的协程
     static void SetThis(ptr co);
     static ptr GetThis();
@@ -76,10 +79,13 @@ private:
     Context m_ctx;
     char* m_stack = nullptr;
     Func m_task;
+    // io相关的
+    // io结果
+    size_t io_res = 0; 
+    
 
     static size_t m_stack_size;
-    // static thread_local std::shared_ptr<Fiber> mainFiber;
-    // static thread_local std::shared_ptr<Fiber> currentFiber;
+    
 };    
 
 static std::atomic<uint64_t> s_Fiber_id {0};
