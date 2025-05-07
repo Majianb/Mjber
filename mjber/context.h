@@ -25,7 +25,7 @@ linux约定
 
 // 上下文结构体（需严格匹配汇编偏移）
 // rbx、rbp、rsi、rdi r12-15 xmm6-15
-struct Context {
+struct alignas(16) Context {
 #if defined(__x86_64__)
     void* rip;
     void* rsp;
@@ -84,6 +84,7 @@ extern "C" {
 
 // x86_64实现
 // rdi是第一个参数，保存上下文结构体地址
+#ifdef WIN32_
 void ctx_save(Context* ctx) {
     asm volatile (
         //rcx=&ctx
@@ -203,6 +204,127 @@ void ctx_swap(Context* o_ctx,Context* t_ctx){
         "jmp *%rax\n"               // 跳转到保存的rip
     );
 }
+#else
+void ctx_save(Context* ctx) {
+    asm volatile (
+        //rcx=&ctx
+        // 保存返回地址到rip字段
+        "movq 8(%rbp), %rax\n"      // 保存函数返回地址到rax
+        "movq %rax, 0x00(%rdi)\n"      // ctx->rip = return address
+        
+        // 保存原栈指针
+        "leaq 0x10(%rsp), %rax\n"
+        "movq %rax, 0x08(%rdi)\n"      // ctx->rsp
+        
+        // 保存Callee-saved寄存器
+        "movq %rbx, 0x10(%rdi)\n"
+
+        "movq 0(%rbp), %rax\n" //由于函数压入返回地址、rbp
+        "movq %rax, 0x18(%rdi)\n"
+
+        // "movq %rsi, 0x20(%rdi)\n"
+        // "movq %rdi, 0x28(%rdi)\n"
+        "movq %r12, 0x30(%rdi)\n"
+        "movq %r13, 0x38(%rdi)\n"
+        "movq %r14, 0x40(%rdi)\n"
+        "movq %r15, 0x48(%rdi)\n"
+        
+        // 保存XMM6-XMM15
+        "movdqu %xmm6, 0x50(%rdi)\n"
+        "movdqu %xmm7, 0x60(%rdi)\n"
+        "movdqu %xmm8, 0x70(%rdi)\n"
+        "movdqu %xmm9, 0x80(%rdi)\n"
+        "movdqu %xmm10, 0x90(%rdi)\n"
+        "movdqu %xmm11, 0xA0(%rdi)\n"
+        "movdqu %xmm12, 0xB0(%rdi)\n"
+        "movdqu %xmm13, 0xC0(%rdi)\n"
+        "movdqu %xmm14, 0xD0(%rdi)\n"
+        "movdqu %xmm15, 0xE0(%rdi)\n"
+    );
+}
+
+void ctx_swap(Context* o_ctx,Context* t_ctx){
+    asm(
+        // rcx=o_ctx, rdx=t_ctx
+        
+        // 保存当前上下文到o_ctx-------------------------------------------//
+        "movq 8(%rbp), %rax\n"      // 保存函数返回地址到rax
+        "movq %rax, 0x00(%rdi)\n"      // ctx->rip = return address
+        
+        // 保存原栈指针
+        "leaq 0x10(%rsp), %rax\n"
+        "movq %rax, 0x08(%rdi)\n"      // ctx->rsp
+        
+        // 保存Callee-saved寄存器
+        "movq %rbx, 0x10(%rdi)\n"
+
+        "movq 0(%rbp), %rax\n" //由于函数压入返回地址、rbp
+        "movq %rax, 0x18(%rdi)\n"
+
+        // "movq %rsi, 0x20(%rdi)\n"
+        // "movq %rdi, 0x28(%rdi)\n"
+        "movq %r12, 0x30(%rdi)\n"
+        "movq %r13, 0x38(%rdi)\n"
+        "movq %r14, 0x40(%rdi)\n"
+        "movq %r15, 0x48(%rdi)\n"
+        
+        // 保存XMM6-XMM15
+        "movdqu %xmm6, 0x50(%rdi)\n"
+        "movdqu %xmm7, 0x60(%rdi)\n"
+        "movdqu %xmm8, 0x70(%rdi)\n"
+        "movdqu %xmm9, 0x80(%rdi)\n"
+        "movdqu %xmm10, 0x90(%rdi)\n"
+        "movdqu %xmm11, 0xA0(%rdi)\n"
+        "movdqu %xmm12, 0xB0(%rdi)\n"
+        "movdqu %xmm13, 0xC0(%rdi)\n"
+        "movdqu %xmm14, 0xD0(%rdi)\n"
+        "movdqu %xmm15, 0xE0(%rdi)\n"
+        
+        // 恢复目标上下文t_ctx------------------------------------------//
+        // 恢复XMM寄存器
+        "movdqu 0x50(%rsi), %xmm6\n"
+        "movdqu 0x60(%rsi), %xmm7\n"
+        "movdqu 0x70(%rsi), %xmm8\n"
+        "movdqu 0x80(%rsi), %xmm9\n"
+        "movdqu 0x90(%rsi), %xmm10\n"
+        "movdqu 0xA0(%rsi), %xmm11\n"
+        "movdqu 0xB0(%rsi), %xmm12\n"
+        "movdqu 0xC0(%rsi), %xmm13\n"
+        "movdqu 0xD0(%rsi), %xmm14\n"
+        "movdqu 0xE0(%rsi), %xmm15\n"
+        
+        // 恢复通用寄存器
+        "movq 0x48(%rsi), %r15\n"
+        "movq 0x40(%rsi), %r14\n"
+        "movq 0x38(%rsi), %r13\n"
+        "movq 0x30(%rsi), %r12\n"
+        // "movq 0x28(%rsi), %rdi\n"
+        // "movq 0x20(%rsi), %rsi\n"
+        "movq 0x18(%rsi), %rbp\n"
+        "movq 0x10(%rsi), %rbx\n"
+        
+
+        //恢复执行流----------------------------------------//
+        "movq 0x100(%rsi), %rax\n"
+        "cmpq $1, %rax\n"
+        "jne .L1\n"// 如果不是第一次进入
+
+        // 第一次进入时，准备工作函数，参数放到rcx
+
+        "movq 0xF0(%rsi), %rdi\n" //准备好参数到rcx
+        "movq $0, 0x100(%rsi)\n" //下次进入不用重新进入函数
+        "movq 0xF8(%rsi), %rax\n"//准备好函数地址
+        "movq 0x08(%rsi), %rsp\n"
+        "jmp *%rax\n" //跳转到工作函数
+
+        // 否则，恢复栈指针和跳转地址
+        ".L1:\n"
+        "movq 0x08(%rsi), %rsp\n"
+        "movq 0x00(%rsi), %rax\n"
+        "jmp *%rax\n"               // 跳转到保存的rip
+    );
+}
+#endif
 int ctx_make(Context& ctx,void* func,void* ptr=0,size_t stack_size=1024*1024){
     char* stack_bottom = new char[stack_size];
     char* stack_top = stack_bottom + stack_size - 8;

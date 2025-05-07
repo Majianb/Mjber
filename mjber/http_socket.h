@@ -226,41 +226,54 @@ int HttpScoket::readRequest(std::shared_ptr<HttpRequest> request){
     char* buf = new char[1024];
     std::string m;
     size_t totol = 0;
+
+
     while(true){
-        size_t mlen = socket->read(buf,1024);
-        if(mlen<=0) return -1;
-        m.append(buf,mlen);
+        size_t mlen;
+        try
+        {
+            mlen = socket->read(buf,1024);
+            if(mlen<=0) return mlen;
+            m.append(buf,mlen);
+        }
+        catch(const std::exception& e)
+        {
+            std::cerr << e.what() << '\n';
+        }
+        
         //每次新的数据进行查找
         size_t end_pos = m.find("\r\n\r\n",totol);
-        if(end_pos != std::string::npos){ //找到的话先把请求头都读取
+        if(end_pos == std::string::npos){
+            totol+=mlen;
+        }
+        else { //找到的话先把请求头都读取
             std::string m_head = m.substr(0,end_pos+4);
             request->decode(m_head);
             
-            //如果还带着消息体，应该继续接收
+            //如果还带着消息体，应该继续接收,进入内容的接收过程
             if(request->m_method=="POST" && request->getHeader("Content-Length")!=""){
                 size_t content_len = stoi(request->getHeader("Content-Length"));
                 std::string context = m.substr(m_head.size(),m.size()-m_head.size()); //存消息体
                 while(content_len>0){
                     size_t mlen = socket->read(buf,1024);
-                    if(mlen<0) break;
+                    if(mlen<=0) break;
                     else{
                         context.append(buf,mlen);
                         content_len-=mlen;
+                        totol+=mlen;
                     }
                 }
                 if(content_len==0){
                     request->m_body = std::move(context);
-                    break;
+                    return totol;
                 }
                 //否则报错
             }
             else break;
-
         }
-        else totol+=mlen;
     }
     delete[] buf;
-    return 0;
+    return totol;
 }
 
 

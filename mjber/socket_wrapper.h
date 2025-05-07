@@ -11,6 +11,9 @@
     #include <netinet/in.h>
     #include <unistd.h>
     #include <fcntl.h>
+    #include <arpa/inet.h>
+    #include <sys/un.h>
+    #include <netinet/tcp.h>
     #define CLOSE_SOCKET close
 #endif
 
@@ -83,7 +86,7 @@ public:
                             sizeof(sockaddr_in);
         
         if (::bind(fd_, reinterpret_cast<sockaddr*>(&ss), len) == -1) {
-            // Logger::error("Bind failed: {}", strerror(errno));
+
             int savedErrno = errno;
             const char* errm = std::strerror(savedErrno);
             std::string m(errm);
@@ -243,27 +246,26 @@ public:
     ssize_t read(char* buf,ssize_t len=1024) {
 
         // 如果连接已经关闭
-        if(fd_ == INVALID_SOCKET){
+        if(fd_ == -1){
             return -1;
         }
         //注册到调度器
         if(globalScheduler){
-            globalScheduler->addEvent(fd_,EPOLLOUT,Fiber::GetThis());
+            globalScheduler->addEvent(fd_,EPOLLIN|EPOLLET);
         }
         //接收调度,等待可以时会返回
         if(globalScheduler){
             globalScheduler->wait();
         }
-        // 阻塞读
+        //阻塞读
         int r = ::read(fd_, buf, len);
-        // 错误处理，请改成linux下的
+        LOG_STREAM<<"fiber read: "<<r<<DEBUGLOG;
+        //错误处理
         if (r == -1) {
-            LOG_STREAM<<"soccket read failed: "<< error <<ERRORLOG;
-            closesocket(fd_);
+            LOG_STREAM<<"soccket read failed: "<< errno <<ERRORLOG;
             return -1;
         }
         return r;
-    
     }
     #endif
 
@@ -288,29 +290,32 @@ public:
     #else
     //LINUX
     size_t write(const char* buf,size_t len) {
+        // LOG_STREAM<<"fiber begin write"<<ERRORLOG;
         // 如果连接已经关闭
-        if(fd_ == INVALID_SOCKET){
+        if(fd_ == -1){
             return -1;
         }
         //注册到调度器
         if(globalScheduler){
-            globalScheduler->addEvent(fd_,EPOLLIN,Fiber::GetThis());
+            globalScheduler->addEvent(fd_,EPOLLOUT|EPOLLET);
         }
         //接收调度,等待可以时会返回
         if(globalScheduler){
             globalScheduler->wait();
         }
+        // LOG_STREAM<<"fiber write resume"<<ERRORLOG;
         // 阻塞读
-        int r = ::read(fd_, buf, len);
-        // 错误处理，请改成linux下的
+        int r = ::write(fd_, buf, len);
+        // LOG_STREAM<<"fiber write: "<<r<<ERRORLOG;
+        // 错误处理
         if (r == -1) {
-            LOG_STREAM<<"soccket read failed: "<< error <<ERRORLOG;
-            closesocket(fd_);
+            LOG_STREAM<<"soccket read failed: "<< errno <<ERRORLOG;
             return -1;
         }
         return r;
     }
     #endif
+    
     std::string& getIP(){
         return ip_;
     }

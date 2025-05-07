@@ -190,26 +190,35 @@ int HttpServer::setRoute(std::vector<std::pair<std::string,RouteHandler>> url_ha
 
 // server对请求的的处理流程
 void HttpServer::worker(HttpServer* p, std::shared_ptr<SocketWrapper> c_socket){
-    while(true){
-        // 1.先接收消息
-        auto  httpsocket = std::make_shared<HttpScoket>(c_socket);
-        std::shared_ptr<HttpRequest> request = std::make_shared<HttpRequest>();
-        int r = httpsocket->readRequest(request);
-        if(r==-1){
-            LOG_STREAM<<"disconnect from: "<<c_socket->getIP()<<INFOLOG;
-            return;
+      
+    try{
+        std::shared_ptr<HttpScoket> httpsocket = std::make_shared<HttpScoket>(c_socket);
+        while(true){
+            
+            // 1.先接收消息
+            std::shared_ptr<HttpRequest> request = std::make_shared<HttpRequest>();
+            int r = httpsocket->readRequest(request);
+            if(r == -1){
+                LOG_STREAM<<"in reed disconnect from: "<<c_socket->getIP()<<ERRORLOG;
+                return;
+            }
+            LOG_STREAM<<"get url:"<<request->url<<"from "<<c_socket->getIP()<<INFOLOG;
+
+            // 2.根据路由进行下一步的操作
+            RouteHandler handler = p->routeTable.find(request->url);
+            auto res = handler(request);
+
+            // 3.返回响应
+            r = httpsocket->writeResponse(res);
+            if(r == -1){
+                LOG_STREAM<<"in write disconnect from: "<<c_socket->getIP()<<ERRORLOG;
+                return;
+            }
+            LOG_STREAM<<"return "<<res->m_reason<<" to "<<c_socket->getIP()<<INFOLOG;
         }
-
-        LOG_STREAM<<"get url:"<<request->url<<"from "<<c_socket->getIP()<<INFOLOG;
-
-        // 2.根据路由进行下一步的操作
-        RouteHandler handler = p->routeTable.find(request->url);
-        auto res = handler(request);
-
-        LOG_STREAM<<"return "<<res->m_reason<<" to "<<c_socket->getIP()<<INFOLOG;
-
-        // 3.返回响应
-        httpsocket->writeResponse(res);
+    }catch(const std::exception& e){
+        LOG_STREAM<<"in http work catch "<<e.what()<<" with "<<c_socket->getIP()<<ERRORLOG;
+        return;
     }
 }
 

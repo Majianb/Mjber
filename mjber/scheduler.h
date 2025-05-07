@@ -6,6 +6,9 @@
 #include <map>
 #include <unordered_map>
 #include <thread>
+#include <utility>
+
+
 #include "thread_pool.h"
 #include "fiber.h"
 #include "logger.h"
@@ -25,14 +28,29 @@
 
 
 /*
-    事件类型，关联的协程，时间
+    协程的描述符
+    等待的事件类型，协程指针，时间
 */
-struct IOEvent{
+class FiberDes{
+public:
+    #ifdef _WIN32
+    FiberDes(std::shared_ptr<Fiber> fiber):fiber_(fiber),type_(IOType::NONE),fd_(-1),io_res_(0){}
+    #else
+    FiberDes(std::shared_ptr<Fiber> fiber):fiber_(fiber),type_(IOType::NONE),fd_(-1){}
+    #endif
+
     std::shared_ptr<Fiber> fiber_;
+    //NONE表示没等待事件
     enum IOType{
-        READ,WRITE
+        READ,WRITE,NONE
     } type_;
     std::time_t time_;
+    //阻塞的io字段
+    int fd_;
+    //对于windows用来传递IO完成结果
+    #ifdef _WIN32
+    size_t io_res_;
+    #endif
 };
 
 
@@ -42,31 +60,48 @@ public:
     IOScheduler(size_t threadCount = 1):threadPool(threadCount){};
 
     virtual ~IOScheduler() = default;
-    //注册事件，调度点
-    virtual void addEvent(int fd, uint32_t events, std::shared_ptr<Fiber> fiber) = 0;
-    //调用的协程会阻塞自己来让线程进行其他工作
+    /*
+        协程内调用的方法
+    */
+    //--注册事件，调度点
+    virtual void addEvent(int fd, uint32_t events) = 0;
+    //--主动让出，调用的协程会阻塞自己来让线程进行其他工作
     void wait(){
-        LOG_STREAM<<"Fiber yield"<<INFOLOG;
         Fiber::GetThis()->yield();
-        LOG_STREAM<<"Fiber resume"<<INFOLOG;
     }
-    
-    //添加任务
+    //--销毁退出
+    void exit(){
+        std::lock_guard<std::mutex> lock(registryMutex);
+        auto fid = Fiber::GetThis()->getID();
+        if(Registry.find(fid)!=Registry.end())
+            Registry.erase(Registry.find(fid));
+    }
+    /*
+        协程的管理
+    */
+    //--添加任务
     template<typename F,typename... Args>
     void addTask(F&& f,Args&&... args);
-
-    //
-    
+    //--检查协程是否有效
+    bool checkFiber(int64_t fid){
+        std::lock_guard<std::mutex> lock(registryMutex);
+        return Registry.find(fid)!=Registry.end();
+    }
+    bool checkFiber(){
+        std::lock_guard<std::mutex> lock(registryMutex);
+        auto fid = Fiber::GetThis()->getID();
+        return Registry.find(fid)!=Registry.end();
+    }
 
 
     //获取下一个需要执行的
     static std::shared_ptr<IOScheduler> getIOScheduler(size_t threadCount);
     static std::shared_ptr<IOScheduler> gloabalIOScheduler;
+
 protected:
-    std::mutex registryMutex; //为了维护队列的访问
-    std::queue<Fiber::ptr> ready_list;
     ThreadPool threadPool;
-    std::map<int,IOEvent> fdRegistry;
+    std::mutex registryMutex; //为了维护注册表的访问
+    std::unordered_map<uint64_t,std::shared_ptr<FiberDes>> Registry; //记录fiber的注册表
 };
 
 // std::shared_ptr<IOScheduler> IOScheduler::gloabalIOScheduler = std::make_shared<IOScheduler>(4);
@@ -75,12 +110,21 @@ protected:
 //添加一个任务,线程池已经保证线程安全
 template<typename F,typename... Args>
 void IOScheduler::addTask(F&& f,Args&&... args){
+    // 1. 创建fiber
     std::shared_ptr<Fiber> work_fiber = Fiber::Create(f,args...);
-    auto rtask = [](std::shared_ptr<Fiber> fiber){
+    auto rtask = [this](std::shared_ptr<Fiber> fiber){
         LOG_STREAM<<"Fiber "<< std::to_string(fiber->getID())<<" start"<<DEBUGLOG;
         fiber->start();
+        this->exit();
         LOG_STREAM<<"Fiber "<< std::to_string(fiber->getID())<<" end"<<DEBUGLOG;
     };
+    // 2. 维护记录
+    {
+        auto f_id = work_fiber->getID();
+        std::lock_guard<std::mutex> lock(registryMutex);
+        Registry[f_id] = std::make_shared<FiberDes>(work_fiber);
+    }
+    // 3. 推入线程池
     threadPool.enqueue(rtask,work_fiber);
 }
 
@@ -168,7 +212,7 @@ private:
 // Linux 平台的 IO 协程调度器
 class LinuxIOScheduler : public IOScheduler {
 public:
-    LinuxIOScheduler(size_t threadCount = 1) : epollFd(epoll_create1(0)), threadPool(threadCount) {
+    LinuxIOScheduler(size_t threadCount = 1):IOScheduler(threadCount),epollFd(epoll_create1(0)){
         if (epollFd == -1) {
             throw std::runtime_error("Failed to create epoll instance");
         }
@@ -179,14 +223,39 @@ public:
         close(epollFd);
     }
 
-    void addEvent(int fd, uint32_t events, std::shared_ptr<Fiber> fiber) override {
-        epoll_event ev;
-        ev.events = events;
-        ev.data.ptr = fiber.get();
-        if (epoll_ctl(epollFd, EPOLL_CTL_ADD, fd, &ev) == -1) {
-            throw std::runtime_error("Failed to add event to epoll");
+    // 使用一个表来防止重复注册
+    void addEvent(int fd, uint32_t events) override {
+        // 检查协程
+        if(!checkFiber()){
+            throw std::runtime_error("Fiber has been deleted when addEvent");
+        }
+        std::lock_guard<std::mutex> lock(registryMutex);
+        auto f_id = Fiber::GetThis()->getID();
+        auto term = Registry.find(f_id);
+        auto fiber_des = term->second;
+        auto fd_state = EpollRegitry.find(fd);
+        // 查询是否注册过epoll
+        if(fd_state != EpollRegitry.end() && (fd_state->second)&events != 0){ // 注册过就直接修改描述符
+            if(events&EPOLLIN != 0) fiber_des->type_ = FiberDes::READ;
+            if(events&EPOLLOUT != 0) fiber_des->type_ = FiberDes::WRITE;
+            return; 
+        }
+        else{       // 否则进入注册流程
+            // 1.注册到epoll
+            epoll_event ev;
+            ev.events = events;
+            ev.data.ptr = reinterpret_cast<void*>(f_id);
+            if (epoll_ctl(epollFd, EPOLL_CTL_ADD, fd, &ev) == -1) {
+                throw std::runtime_error("Failed to add event to epoll");
+            }
+            // 2.维护注册表
+            if(fd_state == EpollRegitry.end()) EpollRegitry[fd] = events;
+            else EpollRegitry[fd] = EpollRegitry[fd] | events;
+            if(events&EPOLLIN != 0) fiber_des->type_ = FiberDes::READ;
+            if(events&EPOLLOUT != 0) fiber_des->type_ = FiberDes::WRITE;
         }
     }
+
 
 private:
     void run() {
@@ -197,15 +266,27 @@ private:
                 LOG_STREAM<<"epoll_wait error"<<ERRORLOG;
                 continue;
             }
-            for (int i = 0; i < nfds; ++i) {
-                Fiber* fiber = static_cast<Fiber*>(events[i].data.ptr);
-                if (fiber) {
-                    if (fiber) {
-                        LOG_STREAM<<"fiber "<<std::to_string(fiber->getID())<<" get event"<<DEBUGLOG;
+            else{
+                for (int i = 0; i < nfds; ++i) {
+                    uint64_t f_id = reinterpret_cast<uint64_t>(events[i].data.ptr);
+                    auto fiber_events = events[i].events;
+                    if(!checkFiber(f_id)){
+                        throw std::runtime_error("FFiber has been deleted when resume");
+                    }
+                    auto term = Registry.find(f_id);
+                    auto fiber_des = term->second;
+                    // 确认是同类型的事件才唤醒
+                    if(
+                        (fiber_events&EPOLLIN != 0 && fiber_des->type_ == FiberDes::READ)
+                        ||
+                        (fiber_events&EPOLLOUT != 0 && fiber_des->type_ == FiberDes::WRITE)
+                    ) {
+                        fiber_des->type_ = FiberDes::NONE;
+                        LOG_STREAM<<"fiber "<<std::to_string(f_id)<<" get event "<<std::to_string(fiber_events)<<DEBUGLOG;
                         auto rtask = [](Fiber* fiber){
                             fiber->resume();
                         };
-                        threadPool.enqueue(rtask,fiber);
+                        threadPool.enqueue(rtask,fiber_des->fiber_.get());
                     }
                 }
             }
@@ -213,14 +294,15 @@ private:
     }
 
     int epollFd;
-    std::thread worker;
+    std::thread worker; 
+    std::unordered_map<int,int> EpollRegitry; //避免epoll重复注册
 };
 #endif
 
 #ifdef _WIN32
     #define FiberScheduler WinIOScheduler
 #else
-    #define FiberSceduler LinuxIOScheduler
+    #define FiberScheduler LinuxIOScheduler
 #endif
 
 #endif

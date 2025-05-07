@@ -58,7 +58,8 @@ int main(){
 
 
     LOG_ADD_CONSOLE_APPENDER();
-    auto server = HttpServer("127.0.0.1",4000,4);
+    LOG_ADD_FILE_APPENDER("LOG.log");
+    auto server = HttpServer("0.0.0.0",8000,4);
     
     RouteRule rule = std::make_pair<std::string,RouteHandler>("/public/*",getPublic);
     RouteRules rules(1,rule);

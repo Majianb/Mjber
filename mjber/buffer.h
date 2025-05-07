@@ -17,12 +17,12 @@ public:
         : buffer_(initial_size), read_pos_(0), write_pos_(0) {}
 
     // 基础读写接口
-    ssize_t read(void* buffer, size_t len);
-    ssize_t write(const void* buffer, size_t len);
+    size_t read(void* buffer, size_t len);
+    size_t write(const void* buffer, size_t len);
     std::pair<size_t,size_t> commitRead(size_t readlen);
     // 固定长度读写（协程友好）
-    ssize_t readFixSize(void* buffer, size_t len);
-    ssize_t writeFixSize(const void* buffer, size_t len);
+    size_t readFixSize(void* buffer, size_t len);
+    size_t writeFixSize(const void* buffer, size_t len);
 
     // 零拷贝支持
     // void getWriteBuffers(std::vector<iovec>& iovs, size_t len);
@@ -45,7 +45,7 @@ private:
 };
 
 //返回读到的数据长度
-ssize_t Buffer::read(void* buffer, size_t len) {
+size_t Buffer::read(void* buffer, size_t len) {
     RWMutex::ReadLockGuard rlock(mutex_);
     if (len == 0) return 0;
 
@@ -66,7 +66,7 @@ ssize_t Buffer::read(void* buffer, size_t len) {
 }
 
 //总是可以写入
-ssize_t Buffer::write(const void* data, size_t len) {
+size_t Buffer::write(const void* data, size_t len) {
     ensureWritable(len);
     {
         RWMutex::WriteLockGuard wgard(mutex_);
@@ -128,10 +128,10 @@ void Buffer::ensureWritable(size_t len) {
 }
 
 // 确保读取固定长度数据，无数据时等待
-// ssize_t Buffer::readFixSize(void* buffer, size_t len) {
+// size_t Buffer::readFixSize(void* buffer, size_t len) {
 //     size_t total = 0;
 //     while (total < len) {
-//         ssize_t n = read(static_cast<char*>(buffer) + total, len - total);
+//         size_t n = read(static_cast<char*>(buffer) + total, len - total);
 //         if (n <= 0) {
 //             if (errno == EAGAIN) {
 //                 Fiber::YieldToHold(); 
