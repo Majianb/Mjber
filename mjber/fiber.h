@@ -7,6 +7,8 @@
 #include <utility>
 #include <type_traits>
 #include <map>
+
+#include "logger.h"
 // 新建一个协程：使用构造函数传入函数
 // 此时新建一个用于执行该函数的上下文
 // start时开始执行任务协程，转到任务协程上下文继续执行
@@ -26,7 +28,8 @@ enum class FiberState {
     HOLD,   // 挂起
     EXEC,   // 执行
     TERM,   // 终止
-    READY   // 就绪
+    READY,   // 就绪
+    ERROR    // 错误
 };
 // start() init -> exec
 // resume() ready -> exec
@@ -62,8 +65,15 @@ public:
     // 获取当前协程状态
     FiberState getState() const { return m_state; }
     uint64_t getID() const { return m_id; }
-    size_t getIORes() const { return io_res; }
-    void setIORes(size_t res) { this->io_res = res;}
+    // 设置返回回调
+    template <typename Fn, typename... Args>
+    void setCallBack(Fn&& task, Args&&... args){
+        auto call_back_func = std::bind(
+            std::forward<Fn>(intask), std::forward<Args>(args)...
+        );
+        call_back = call_back_func;
+    }
+
     // 设置当前正在执行的协程
     static void SetThis(ptr co);
     static ptr GetThis();
@@ -74,17 +84,16 @@ private:
 
 private:
     uint64_t m_id = 0;
+    // =======内部执行相关=========
     // static size_t m_stack_size;
+    static size_t m_stack_size;
     FiberState m_state = FiberState::INIT;
     Context m_ctx;
     char* m_stack = nullptr;
     Func m_task;
-    // io相关的
-    // io结果
-    size_t io_res = 0; 
-    
-
-    static size_t m_stack_size;
+    // =======返回相关============
+    std::string error_; // 错误信息
+    Func call_back; // 结束后的回调
     
 };    
 
@@ -95,7 +104,8 @@ thread_local std::shared_ptr<Fiber> currentFiber = nullptr;  // 代表当前正�
 thread_local std::shared_ptr<Fiber> mainFiber = nullptr;
 
 // 主协程
-Fiber::Fiber(): m_id(++s_Fiber_id), m_stack(nullptr){
+// 计数不加
+Fiber::Fiber(): m_stack(nullptr){
     m_state = FiberState::EXEC;
     m_ctx.firstIn = 0;
 }
@@ -184,12 +194,26 @@ void Fiber::yield(Fiber::ptr nextfiber=nullptr) {
     }
 }
 
-// 协程的工作函数
+// 协程的工作函数，添加出错处理
 void Fiber::mainFunc(Fiber* fiber) {
-
-    if (fiber->m_task) {
-        fiber->m_task();
+    try
+    {
+        if (fiber->m_task) {
+            fiber->m_task();
+        }
+        if (fiber->call_back){
+            fiber->call_back();
+        }
     }
+    catch(const std::exception& e)
+    {
+        LOG_STREAM<<"Fiber " <<std::to_string(fiber->m_id)<< "failed: "<<e.what()<<ERRORLOG;
+        fiber->m_state = FiberState::ERROR;
+        fiber->error_ = e.what();
+        ctx_swap(&(fiber->m_ctx),&(mainFiber->m_ctx));
+    }
+    
+
     fiber->m_state = FiberState::TERM;
     ctx_swap(&(fiber->m_ctx),&(mainFiber->m_ctx));
 }

@@ -48,7 +48,7 @@ public:
     };
     static SocketInitializer globalInitializer;
 
-    // 创建Socket
+    // 创建非阻塞的Socket
     static std::shared_ptr<SocketWrapper> Create(Type type, const std::string& addr, uint16_t port = 0) {
         const int domain = GetDomain(addr);
         int socktype = (type == Type::TCP) ? SOCK_STREAM : SOCK_DGRAM;
@@ -63,6 +63,19 @@ public:
             LOG_STREAM<<"Create socket failed: "<<errno<<INFOLOG;
             throw std::system_error(errno, std::system_category());
         }
+        // 获取当前文件状态标志
+        int flags = fcntl(fd, F_GETFL, 0);
+        if (flags == -1) {
+            LOG_STREAM<<"Create socket failed: "<<errno<<INFOLOG;
+            throw std::system_error(errno, std::system_category());
+            close(fd);
+        }
+        // 设置非阻塞标志
+        if (fcntl(fd, F_SETFL, flags | O_NONBLOCK) == -1) {
+            LOG_STREAM<<"Create socket failed: "<<errno<<INFOLOG;
+            throw std::system_error(errno, std::system_category());
+        }
+
         auto rs = std::make_shared<SocketWrapper>(fd, type, domain);
         rs->bind(addr,port);
         rs->ip_ = addr;
@@ -114,7 +127,8 @@ public:
         return true;
     }
 
-    // 接受连接，返回一个新的连接
+    // 接受连接，返回一个新的连接，非阻塞
+    // 对协程保证返回结果
     std::shared_ptr<SocketWrapper> accept() {
         if (type_ != Type::TCP) {
             LOG_STREAM<<"accept() is only available for TCP sockets"<<ERRORLOG;
@@ -122,14 +136,30 @@ public:
         }
         sockaddr_storage client_addr{};
         socklen_t client_addr_len = sizeof(client_addr);
-        int client_fd = ::accept(fd_, reinterpret_cast<sockaddr*>(&client_addr), &client_addr_len);
-        if (client_fd == -1) {
-            
-            const char* errorMsgCStr = std::strerror(errno);
-            std::string errorMsg = std::string(errorMsgCStr);
-            std::cout<<"error"<<errorMsg;
-            LOG_STREAM<<"Accept failed: "<<errorMsg<<ERRORLOG;
-            return nullptr;
+        int client_fd;
+        while(true){ 
+            client_fd = ::accept(fd_, reinterpret_cast<sockaddr*>(&client_addr), &client_addr_len);
+            if (client_fd == -1) {
+                auto error_n = errno;
+                if(error_n == EAGAIN){ // wait
+                    //注册到调度器
+                    if(globalScheduler){
+                        globalScheduler->addEvent(fd_,EPOLLIN|EPOLLET);
+                    }
+                    //接收调度,等待可以时会返回
+                    if(globalScheduler){
+                        globalScheduler->wait();
+                    }
+
+                }else{                 // error
+                    const char* errorMsgCStr = std::strerror(errno);
+                    std::string errorMsg = std::string(errorMsgCStr);
+                    LOG_STREAM<<"Accept failed: "<<errorMsg<<ERRORLOG;
+                    throw std::runtime_error("Accept failed");
+                }
+            }else{
+                break;
+            }
         }
         // 维护地址
         std::string client_ip;
@@ -242,7 +272,7 @@ public:
     
     }
     #else
-    //linux下的不需要特殊处理
+    //linux下的不需要特殊处理,只保证读完
     ssize_t read(char* buf,ssize_t len=1024) {
 
         // 如果连接已经关闭
@@ -257,20 +287,35 @@ public:
         if(globalScheduler){
             globalScheduler->wait();
         }
-        //阻塞读
-        int r = ::read(fd_, buf, len);
-        LOG_STREAM<<"fiber read: "<<r<<DEBUGLOG;
-        //错误处理
-        if (r == -1) {
-            LOG_STREAM<<"soccket read failed: "<< errno <<ERRORLOG;
-            return -1;
+        //非阻塞读
+        int r;
+        while(true){
+            r = ::read(fd_, buf, len);
+            auto error_n = errno;
+            if(r==-1){
+                if(error_n == EAGAIN){ // wait
+                    //注册到调度器
+                    if(globalScheduler){
+                        globalScheduler->addEvent(fd_,EPOLLOUT|EPOLLET);
+                    }
+                    //接收调度,等待可以时会返回
+                    if(globalScheduler){
+                        globalScheduler->wait();
+                    }
+                    continue;
+                }
+                else{                   // error
+                    LOG_STREAM<<"soccket read failed: "<< errno <<ERRORLOG;
+                    return -1;
+                }
+            }
+            else return r;
         }
-        return r;
     }
     #endif
 
     #ifdef _WIN32
-    //写时也是同样
+    //写时也是同样,保证交付len
     size_t write(const char* buf,size_t len) {
         WSABUF wsabuf;
         wsabuf.buf = const_cast<char*>(buf);
@@ -292,27 +337,37 @@ public:
     size_t write(const char* buf,size_t len) {
         // LOG_STREAM<<"fiber begin write"<<ERRORLOG;
         // 如果连接已经关闭
+        int totol = len;
         if(fd_ == -1){
             return -1;
         }
-        //注册到调度器
-        if(globalScheduler){
-            globalScheduler->addEvent(fd_,EPOLLOUT|EPOLLET);
+        // 非阻塞的读
+        while(totol>0){
+            int r = ::write(fd_, buf, len);
+            auto error_n = errno;
+            if(r==-1){                 // can not write
+                if(error_n == EAGAIN){ // wait
+                    //注册到调度器
+                    if(globalScheduler){
+                        globalScheduler->addEvent(fd_,EPOLLOUT|EPOLLET);
+                    }
+                    //接收调度,等待可以时会返回
+                    if(globalScheduler){
+                        globalScheduler->wait();
+                    }
+                    continue;
+                }
+                else{                   // error
+                    LOG_STREAM<<"soccket read failed: "<< errno <<ERRORLOG;
+                    return -1;
+                }
+            }
+            if(r>=0) totol-=r;
         }
-        //接收调度,等待可以时会返回
-        if(globalScheduler){
-            globalScheduler->wait();
-        }
+        return 0;
         // LOG_STREAM<<"fiber write resume"<<ERRORLOG;
-        // 阻塞读
-        int r = ::write(fd_, buf, len);
+        
         // LOG_STREAM<<"fiber write: "<<r<<ERRORLOG;
-        // 错误处理
-        if (r == -1) {
-            LOG_STREAM<<"soccket read failed: "<< errno <<ERRORLOG;
-            return -1;
-        }
-        return r;
     }
     #endif
     

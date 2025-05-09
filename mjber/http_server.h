@@ -156,7 +156,8 @@ private:
     // std::shared_ptr<IOScheduler> scheduler;
     RouteHandler defaultHandler; //默认路由的处理
     RouteTree  routeTable; //路由表
-    static void worker(HttpServer* p, std::shared_ptr<SocketWrapper> socket); //处理流程
+    static void worker(HttpServer* p, std::shared_ptr<SocketWrapper> socket); //消息处理流程
+    static std::shared_ptr<SocketWrapper> accepter(HttpServer* p); // 接收连接流程
 };
 
 HttpServer::HttpServer(const std::string& addr,uint16_t port,int thread_num=-1):routeTable(){
@@ -221,7 +222,19 @@ void HttpServer::worker(HttpServer* p, std::shared_ptr<SocketWrapper> c_socket){
         return;
     }
 }
-
+// server对连接的处理流程
+// 每当得到连接就唤起协程处理
+std::shared_ptr<SocketWrapper> HttpServer::accepter(HttpServer* p){
+    std::function<void(HttpServer*)> accept_worker = [](HttpServer* pointer){
+        while(true){
+            auto newClient =  pointer->serverSocket->accept();
+            globalScheduler->addTask(worker,pointer,newClient);
+        }
+    };
+    if(globalScheduler){
+        globalScheduler->addTask(accept_worker,p);
+    }
+}
 
 // server的启动流程
 int HttpServer::setup(){
@@ -236,7 +249,7 @@ int HttpServer::setup(){
         }
         else{
             LOG_STREAM<<"Get a connect from: "<<newClient->getIP()<<INFOLOG;
-            if(globalScheduler) globalScheduler->addTask(worker,this,newClient);
+            if(globalScheduler) 
             else worker(this,newClient);
         }
 
