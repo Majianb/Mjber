@@ -3,15 +3,19 @@
 
 void Func(int a){
     int n = 1;
-    std::cout<<"time"<<n<<"from: "<<a<<std::endl;
+    std::cout<<"time "<<n<<"from: "<<a<<std::endl;
     Fiber::GetThis()->yield();
     n++;
-    std::cout<<"time"<<n<<"from: "<<a<<std::endl;
+    std::cout<<"time "<<n<<"from: "<<a<<std::endl;
 }
-
+void callBack(int a){
+    std::cout<<"done "<<a<<std::endl;
+}
 int main(){
     auto f1 = Fiber::Create(Func,1);
     auto f2 = Fiber::Create(Func,2);
+    f1->setCallBack(callBack,1);
+    f2->setCallBack(callBack,2);
     f1->start();
     f2->start();
     f1->resume();
