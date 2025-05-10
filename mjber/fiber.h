@@ -69,7 +69,7 @@ public:
     template <typename Fn, typename... Args>
     void setCallBack(Fn&& task, Args&&... args){
         auto call_back_func = std::bind(
-            std::forward<Fn>(intask), std::forward<Args>(args)...
+            std::forward<Fn>(task), std::forward<Args>(args)...
         );
         call_back = call_back_func;
     }
