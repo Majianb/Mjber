@@ -224,15 +224,14 @@ void HttpServer::worker(HttpServer* p, std::shared_ptr<SocketWrapper> c_socket){
 }
 // server对连接的处理流程
 // 每当得到连接就唤起协程处理
-std::shared_ptr<SocketWrapper> HttpServer::accepter(HttpServer* p){
-    std::function<void(HttpServer*)> accept_worker = [](HttpServer* pointer){
-        while(true){
-            auto newClient =  pointer->serverSocket->accept();
-            globalScheduler->addTask(worker,pointer,newClient);
+std::shared_ptr<SocketWrapper> HttpServer::accepter(HttpServer* p){ 
+    // 对于每一个到来的连接分配一个协程去执行对应操作
+    while(true){
+        auto newClient =  p->serverSocket->accept();
+        if(newClient==nullptr){
+            throw std::runtime_error("Failed to accept");
         }
-    };
-    if(globalScheduler){
-        globalScheduler->addTask(accept_worker,p);
+        globalScheduler->addTask(worker,p,newClient);
     }
 }
 
@@ -240,20 +239,28 @@ std::shared_ptr<SocketWrapper> HttpServer::accepter(HttpServer* p){
 int HttpServer::setup(){
     // 1.监听
     serverSocket->listen();
-    // 2.循环接收连接
-    while(true){
-        auto newClient =  serverSocket->accept();
-        //3.对于每一个到来的连接分配一个协程去执行对应操作
-        if(newClient==nullptr){
-            throw std::runtime_error("Failed to accept");
+    // 2.接收连接
+    if(globalScheduler){  // 对于协程注册一个任务用来接收
+        globalScheduler->addTask(accepter,this);
+        std::string command;
+        while(std::cin>>command){
+            
         }
-        else{
-            LOG_STREAM<<"Get a connect from: "<<newClient->getIP()<<INFOLOG;
-            if(globalScheduler) 
-            else worker(this,newClient);
-        }
+    }
+    else{                 // 否则以阻塞形式等待
+        while(true){
+            auto newClient =  serverSocket->accept();
+            if(newClient==nullptr){
+                throw std::runtime_error("Failed to accept");
+            }
+            else{
+                LOG_STREAM<<"Get a connect from: "<<newClient->getIP()<<INFOLOG;
+                worker(this,newClient);
+            }
 
-    }   
+        }   
+    }
+    
 }
 
 

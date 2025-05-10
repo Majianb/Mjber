@@ -71,10 +71,13 @@ public:
     }
     //--销毁退出
     void exit(){
-        std::lock_guard<std::mutex> lock(registryMutex);
         auto fid = Fiber::GetThis()->getID();
+        {
+        std::lock_guard<std::mutex> lock(registryMutex);
         if(Registry.find(fid)!=Registry.end())
             Registry.erase(Registry.find(fid));
+        }
+        LOG_STREAM<<"Fiber "<< std::to_string(fid)<<" end"<<DEBUGLOG;
     }
     /*
         协程的管理
@@ -115,8 +118,9 @@ void IOScheduler::addTask(F&& f,Args&&... args){
     auto rtask = [this](std::shared_ptr<Fiber> fiber){
         LOG_STREAM<<"Fiber "<< std::to_string(fiber->getID())<<" start"<<DEBUGLOG;
         fiber->start();
+    };
+    auto call_back_task = [this](){
         this->exit();
-        LOG_STREAM<<"Fiber "<< std::to_string(fiber->getID())<<" end"<<DEBUGLOG;
     };
     // 2. 维护记录
     {
