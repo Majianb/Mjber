@@ -8,7 +8,7 @@
 #include <functional>
 
 #include "socket_wrapper.h"
-
+#include "ssl_socket_wrapper.h"
 
 // 首先封装http的请求头
 // 当前支持http1.1
@@ -203,9 +203,9 @@ public:
     todo: 充分利用管道化，支持对多个请求并行准备应答
 */
 
-class HttpScoket{
+class HttpSocket{
 public:
-    HttpScoket(std::shared_ptr<SocketWrapper> socket):socket(socket){};
+    HttpSocket(std::shared_ptr<SocketWrapper> socket):socket(socket){};
     int readRequest(std::shared_ptr<HttpRequest> request); //接收请求
     int writeResponse(std::shared_ptr<HttpResponse> response); //发送响应
     size_t write(void* p,size_t len); //发送消息
@@ -214,14 +214,21 @@ private:
     std::shared_ptr<SocketWrapper> socket;
 };
 
+/*
+    https封装
+*/
+class HttpsSocket: public HttpSocket{
+    HttpsSocket(std::shared_ptr<SSLSocketWrapper> sslsocket):HttpSocket(sslsocket){};
+};
+
 //发送
-int HttpScoket::writeResponse(std::shared_ptr<HttpResponse> response){
+int HttpSocket::writeResponse(std::shared_ptr<HttpResponse> response){
     std::string m = response->encode();
     return socket->write(m.c_str(),m.size());
 }
 
 //接收,保证接收到完整
-int HttpScoket::readRequest(std::shared_ptr<HttpRequest> request){
+int HttpSocket::readRequest(std::shared_ptr<HttpRequest> request){
     
     char* buf = new char[1024];
     std::string m;
@@ -239,6 +246,7 @@ int HttpScoket::readRequest(std::shared_ptr<HttpRequest> request){
         catch(const std::exception& e)
         {
             std::cerr << e.what() << '\n';
+            return -1;
         }
         
         //每次新的数据进行查找
@@ -249,7 +257,7 @@ int HttpScoket::readRequest(std::shared_ptr<HttpRequest> request){
         else { //找到的话先把请求头都读取
             std::string m_head = m.substr(0,end_pos+4);
             request->decode(m_head);
-            
+            totol+=mlen;
             //如果还带着消息体，应该继续接收,进入内容的接收过程
             if(request->m_method=="POST" && request->getHeader("Content-Length")!=""){
                 size_t content_len = stoi(request->getHeader("Content-Length"));
