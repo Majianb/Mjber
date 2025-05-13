@@ -87,7 +87,13 @@ public:
         : fd_(fd), type_(type), domain_(domain) {}
 
     ~SocketWrapper() {
-        if (fd_ != -1) CLOSE_SOCKET(fd_);
+
+        if (fd_ != -1) {
+            CLOSE_SOCKET(fd_);
+            if(globalScheduler!=nullptr){
+                globalScheduler->rmEvent(fd_);
+            }
+        }
     }
 
     // 绑定地址（支持IPv4/IPv6/UNIX域）
@@ -273,19 +279,11 @@ public:
     }
     #else
     //linux下的不需要特殊处理,只保证读完
-    ssize_t read(char* buf,ssize_t len=1024) {
+    virtual ssize_t read(char* buf,ssize_t len=1024) {
 
         // 如果连接已经关闭
         if(fd_ == -1){
             return -1;
-        }
-        //注册到调度器
-        if(globalScheduler){
-            globalScheduler->addEvent(fd_,EPOLLIN|EPOLLET);
-        }
-        //接收调度,等待可以时会返回
-        if(globalScheduler){
-            globalScheduler->wait();
         }
         //非阻塞读
         int r;
@@ -296,7 +294,7 @@ public:
                 if(error_n == EAGAIN){ // wait
                     //注册到调度器
                     if(globalScheduler){
-                        globalScheduler->addEvent(fd_,EPOLLOUT|EPOLLET);
+                        globalScheduler->addEvent(fd_,EPOLLIN|EPOLLERR|EPOLLHUP);
                     }
                     //接收调度,等待可以时会返回
                     if(globalScheduler){
@@ -305,7 +303,7 @@ public:
                     continue;
                 }
                 else{                   // error
-                    LOG_STREAM<<"soccket read failed: "<< errno <<ERRORLOG;
+                    LOG_STREAM<<"Fiber "<<std::to_string(Fiber::GetThis()->getID())<<" soccket read failed: "<< errno <<ERRORLOG;
                     return -1;
                 }
             }
@@ -334,7 +332,7 @@ public:
     }
     #else
     //LINUX
-    size_t write(const char* buf,size_t len) {
+    virtual size_t write(const char* buf,size_t len) {
         // LOG_STREAM<<"fiber begin write"<<ERRORLOG;
         // 如果连接已经关闭
         int totol = len;
@@ -349,7 +347,7 @@ public:
                 if(error_n == EAGAIN){ // wait
                     //注册到调度器
                     if(globalScheduler){
-                        globalScheduler->addEvent(fd_,EPOLLOUT|EPOLLET);
+                        globalScheduler->addEvent(fd_,EPOLLOUT|EPOLLERR|EPOLLHUP);
                     }
                     //接收调度,等待可以时会返回
                     if(globalScheduler){
@@ -400,7 +398,7 @@ public:
         }
     }
 
-private:
+protected:
     //判断地址类型
     static int GetDomain(const std::string& addr) {
         if (addr.find("unix://") == 0) return AF_UNIX;
