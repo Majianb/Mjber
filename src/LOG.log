@@ -1,0 +1,303 @@
+Mon May 12 00:15:01 2025
+ - INFO - http server create  socket on 0.0.0.0:8000
+Mon May 12 00:15:01 2025
+ - INFO - Server setup with fibers
+Mon May 12 00:15:01 2025
+ - DEBUG - Fiber 1 start
+Mon May 12 00:15:05 2025
+ - DEBUG - fiber 1 get event 1
+Mon May 12 00:15:05 2025
+ - DEBUG - Fiber 2 start
+Mon May 12 00:15:05 2025
+ - DEBUG - Fiber 3 start
+Mon May 12 00:15:05 2025
+ - INFO - fiber3get url:/from 221.221.237.241
+Mon May 12 00:15:05 2025
+ - INFO - 3return OK to 221.221.237.241
+Mon May 12 00:15:06 2025
+ - INFO - fiber3get url:/public/backg.jpgfrom 221.221.237.241
+Mon May 12 00:15:06 2025
+ - INFO - request for public file: ../public/backg.jpg
+Mon May 12 00:15:06 2025
+ - INFO - response to public file: ../public/backg.jpg
+Mon May 12 00:15:06 2025
+ - INFO - 3return OK to 221.221.237.241
+Mon May 12 00:15:06 2025
+ - INFO - fiber3get url:/public/icon.pngfrom 221.221.237.241
+Mon May 12 00:15:06 2025
+ - INFO - request for public file: ../public/icon.png
+Mon May 12 00:15:06 2025
+ - INFO - response to public file: ../public/icon.png
+Mon May 12 00:15:06 2025
+ - INFO - 3return OK to 221.221.237.241
+Mon May 12 00:16:22 2025
+ - DEBUG - in reed disconnect from: 221.221.237.241
+Mon May 12 00:16:22 2025
+ - DEBUG - Fiber 2 end
+Mon May 12 00:16:53 2025
+ - DEBUG - fiber 1 get event 1
+Mon May 12 00:16:53 2025
+ - DEBUG - Fiber 2 startMon May 12 22:53:46 2025
+ - INFO - http server create  socket on 0.0.0.0:8000
+Mon May 12 22:53:46 2025
+ - INFO - Server setup with fibers
+Mon May 12 22:53:46 2025
+ - DEBUG - Fiber 1 start
+Mon May 12 22:53:54 2025
+ - DEBUG - fiber 1 get event 1
+Mon May 12 22:53:54 2025
+ - DEBUG - Fiber 2 start
+Mon May 12 22:53:54 2025
+ - DEBUG - fiber 1 get event 1
+Mon May 12 22:53:54 2025
+ - DEBUG - Fiber 3 start
+Mon May 12 22:53:54 2025
+ - INFO - fiber2get url:/from 221.221.236.168
+Mon May 12 22:53:54 2025
+ - INFO - 2return OK to 221.221.236.168
+Mon May 12 22:53:54 2025
+ - INFO - fiber2get url:/public/backg.jpgfrom 221.221.236.168
+Mon May 12 22:53:54 2025
+ - INFO - request for public file: ../public/backg.jpg
+Mon May 12 22:53:54 2025
+ - INFO - response to public file: ../public/backg.jpg
+Mon May 12 22:53:54 2025
+ - INFO - 2return OK to 221.221.236.168
+Mon May 12 22:53:54 2025
+ - INFO - fiber2get url:/public/icon.pngfrom 221.221.236.168
+Mon May 12 22:53:54 2025
+ - INFO - request for public file: ../public/icon.png
+Mon May 12 22:53:54 2025
+ - INFO - response to public file: ../public/icon.png
+Mon May 12 22:53:54 2025
+ - INFO - 2return OK to 221.221.236.168
+Mon May 12 22:54:54 2025
+ - DEBUG - in reed disconnect from: 221.221.236.168
+Mon May 12 22:54:54 2025
+ - DEBUG - Fiber 3 end
+Mon May 12 22:57:47 2025
+ - DEBUG - in reed disconnect from: 221.221.236.168
+Mon May 12 22:57:47 2025
+ - DEBUG - Fiber 2 end
+Mon May 12 23:03:24 2025
+ - DEBUG - fiber 1 get event 1
+Mon May 12 23:03:24 2025
+ - DEBUG - Fiber 2 start
+Mon May 12 23:03:24 2025
+ - INFO - fiber2get url:/from 220.196.160.154
+Mon May 12 23:03:24 2025
+ - INFO - 2return OK to 220.196.160.154
+Mon May 12 23:03:24 2025
+ - DEBUG - in reed disconnect from: 220.196.160.154
+Mon May 12 23:03:24 2025
+ - DEBUG - Fiber 2 end
+Mon May 12 23:03:25 2025
+ - DEBUG - fiber 1 get event 1
+Mon May 12 23:03:25 2025
+ - DEBUG - Fiber 2 start
+Mon May 12 23:03:25 2025
+ - INFO - fiber2get url:/from 220.196.160.61
+Mon May 12 23:03:25 2025
+ - INFO - 2return OK to 220.196.160.61
+Mon May 12 23:03:26 2025
+ - INFO - fiber2get url:/public/backg.jpgfrom 220.196.160.61
+Mon May 12 23:03:26 2025
+ - INFO - request for public file: ../public/backg.jpg
+Mon May 12 23:03:26 2025
+ - INFO - response to public file: ../public/backg.jpg
+Mon May 12 23:03:26 2025
+ - INFO - 2return OK to 220.196.160.61
+Mon May 12 23:03:33 2025
+ - DEBUG - in reed disconnect from: 220.196.160.61
+Mon May 12 23:03:33 2025
+ - DEBUG - Fiber 2 end
+Mon May 12 23:03:35 2025
+ - DEBUG - fiber 1 get event 1
+Mon May 12 23:03:35 2025
+ - DEBUG - Fiber 2 start
+Mon May 12 23:03:35 2025
+ - INFO - fiber2get url:/from 180.101.244.15
+Mon May 12 23:03:35 2025
+ - INFO - 2return OK to 180.101.244.15
+Mon May 12 23:03:35 2025
+ - DEBUG - in reed disconnect from: 180.101.244.15
+Mon May 12 23:03:35 2025
+ - DEBUG - Fiber 2 end
+Mon May 12 23:29:39 2025
+ - DEBUG - fiber 1 get event 1
+Mon May 12 23:29:39 2025
+ - DEBUG - Fiber 2 start
+Mon May 12 23:29:59 2025
+ - DEBUG - in reed disconnect from: 176.65.148.86
+Mon May 12 23:29:59 2025
+ - DEBUG - Fiber 2 end
+Mon May 12 23:55:47 2025
+ - DEBUG - fiber 1 get event 1
+Mon May 12 23:55:47 2025
+ - DEBUG - Fiber 2 start
+Mon May 12 23:55:52 2025
+ - DEBUG - fiber 1 get event 1
+Mon May 12 23:55:52 2025
+ - DEBUG - Fiber 3 start
+Mon May 12 23:55:57 2025
+ - DEBUG - fiber 1 get event 1
+Mon May 12 23:55:57 2025
+ - DEBUG - Fiber 4 start
+Mon May 12 23:56:03 2025
+ - DEBUG - in reed disconnect from: 192.109.206.10
+Mon May 12 23:56:03 2025
+ - DEBUG - Fiber 2 end
+Mon May 12 23:56:03 2025
+ - DEBUG - in reed disconnect from: 192.109.206.10
+Mon May 12 23:56:03 2025
+ - DEBUG - Fiber 4 end
+Mon May 12 23:56:03 2025
+ - DEBUG - in reed disconnect from: 192.109.206.10
+Mon May 12 23:56:03 2025
+ - DEBUG - Fiber 3 end
+Tue May 13 00:30:34 2025
+ - DEBUG - fiber 1 get event 1
+Tue May 13 00:30:34 2025
+ - DEBUG - Fiber 3 start
+Tue May 13 00:31:14 2025
+ - DEBUG - in reed disconnect from: 45.135.194.43
+Tue May 13 00:31:14 2025
+ - DEBUG - Fiber 3 end
+Tue May 13 00:36:38 2025
+ - DEBUG - fiber 1 get event 1
+Tue May 13 00:36:38 2025
+ - DEBUG - Fiber 3 start
+Tue May 13 00:36:48 2025
+ - DEBUG - fiber 1 get event 1
+Tue May 13 00:36:48 2025
+ - DEBUG - Fiber 4 start
+Tue May 13 00:36:58 2025
+ - DEBUG - in reed disconnect from: 165.232.158.113
+Tue May 13 00:36:58 2025
+ - DEBUG - Fiber 3 end
+Tue May 13 00:36:58 2025
+ - DEBUG - in reed disconnect from: 165.232.158.113
+Tue May 13 00:36:58 2025
+ - DEBUG - Fiber 4 end
+Tue May 13 00:36:58 2025
+ - DEBUG - fiber 1 get event 1
+Tue May 13 00:36:58 2025
+ - DEBUG - Fiber 4 start
+Tue May 13 00:36:58 2025
+ - INFO - fiber4get url:/from 165.232.158.113
+Tue May 13 00:36:58 2025
+ - INFO - 4return OK to 165.232.158.113
+Tue May 13 00:36:58 2025
+ - DEBUG - in reed disconnect from: 165.232.158.113
+Tue May 13 00:36:58 2025
+ - DEBUG - Fiber 4 end
+Tue May 13 00:36:58 2025
+ - DEBUG - fiber 1 get event 1
+Tue May 13 00:36:58 2025
+ - DEBUG - Fiber 4 start
+Tue May 13 00:36:58 2025
+ - INFO - fiber4get url:/loginfrom 165.232.158.113
+Tue May 13 00:36:58 2025
+ - INFO - 4return OK to 165.232.158.113
+Tue May 13 00:36:59 2025
+ - DEBUG - in reed disconnect from: 165.232.158.113
+Tue May 13 00:36:59 2025
+ - DEBUG - Fiber 4 end
+Tue May 13 00:58:39 2025
+ - DEBUG - fiber 1 get event 1
+Tue May 13 00:58:39 2025
+ - DEBUG - Fiber 4 start
+Tue May 13 00:58:39 2025
+ - INFO - fiber4get url:/public/icon.pngfrom 27.44.125.106
+Tue May 13 00:58:39 2025
+ - INFO - request for public file: ../public/icon.png
+Tue May 13 00:58:39 2025
+ - INFO - response to public file: ../public/icon.png
+Tue May 13 00:58:39 2025
+ - INFO - 4return OK to 27.44.125.106
+Tue May 13 00:59:39 2025
+ - DEBUG - in reed disconnect from: 27.44.125.106
+Tue May 13 00:59:39 2025
+ - DEBUG - Fiber 4 end
+Tue May 13 01:20:12 2025
+ - DEBUG - fiber 1 get event 1
+Tue May 13 01:20:12 2025
+ - DEBUG - Fiber 4 start
+Tue May 13 01:34:13 2025
+ - ERROR - Fiber 4 soccket read failed: 104
+Tue May 13 01:34:13 2025
+ - ERROR - error in reed disconnect from: 83.222.190.78
+Tue May 13 01:34:13 2025
+ - DEBUG - Fiber 4 end
+Tue May 13 04:01:32 2025
+ - DEBUG - fiber 1 get event 1
+Tue May 13 04:01:32 2025
+ - DEBUG - Fiber 4 start
+Tue May 13 04:01:36 2025
+ - ERROR - Fiber 4 soccket read failed: 104
+Tue May 13 04:01:36 2025
+ - ERROR - error in reed disconnect from: 167.94.138.60
+Tue May 13 04:01:36 2025
+ - DEBUG - Fiber 4 end
+Tue May 13 04:01:36 2025
+ - DEBUG - fiber 1 get event 1
+Tue May 13 04:01:36 2025
+ - DEBUG - Fiber 4 start
+Tue May 13 04:01:39 2025
+ - INFO - fiber4get url:/from 167.94.138.60
+Tue May 13 04:01:39 2025
+ - INFO - 4return OK to 167.94.138.60
+Tue May 13 04:01:40 2025
+ - ERROR - Fiber 4 soccket read failed: 104
+Tue May 13 04:01:40 2025
+ - ERROR - error in reed disconnect from: 167.94.138.60
+Tue May 13 04:01:40 2025
+ - DEBUG - Fiber 4 end
+Tue May 13 04:01:44 2025
+ - DEBUG - fiber 1 get event 1
+Tue May 13 04:01:44 2025
+ - DEBUG - Fiber 4 start
+Tue May 13 04:01:44 2025
+ - INFO - fiber4get url:/from 167.94.138.60
+Tue May 13 04:01:44 2025
+ - INFO - 4return OK to 167.94.138.60
+Tue May 13 04:01:45 2025
+ - DEBUG - in reed disconnect from: 167.94.138.60
+Tue May 13 04:01:45 2025
+ - DEBUG - Fiber 4 end
+Tue May 13 04:01:45 2025
+ - DEBUG - fiber 1 get event 1
+Tue May 13 04:01:45 2025
+ - DEBUG - Fiber 4 start
+Tue May 13 04:01:46 2025
+ - INFO - fiber4get url:/public/icon.pngfrom 167.94.138.60
+Tue May 13 04:01:46 2025
+ - INFO - request for public file: ../public/icon.png
+Tue May 13 04:01:46 2025
+ - INFO - response to public file: ../public/icon.png
+Tue May 13 04:01:46 2025
+ - INFO - 4return OK to 167.94.138.60
+Tue May 13 04:01:49 2025
+ - DEBUG - in reed disconnect from: 167.94.138.60
+Tue May 13 04:01:49 2025
+ - DEBUG - Fiber 4 end
+Tue May 13 04:01:51 2025
+ - DEBUG - fiber 1 get event 1
+Tue May 13 04:01:51 2025
+ - DEBUG - Fiber 4 start
+Tue May 13 04:01:53 2025
+ - INFO - fiber4get url:/favicon.icofrom 167.94.138.60
+Tue May 13 04:01:53 2025
+ - INFO - 4return OK to 167.94.138.60
+Tue May 13 04:01:54 2025
+ - ERROR - Fiber 4 soccket read failed: 104
+Tue May 13 04:01:54 2025
+ - ERROR - error in reed disconnect from: 167.94.138.60
+Tue May 13 04:01:54 2025
+ - DEBUG - Fiber 4 end
+Tue May 13 04:01:54 2025
+ - DEBUG - fiber 1 get event 1
+Tue May 13 04:01:54 2025
+ - DEBUG - Fiber 4 start
+Tue May 13 04:01:55 2025
+ - INFO - fiber4get url:*from 167.94.138.60

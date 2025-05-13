@@ -1,0 +1,9 @@
+Address already in use
+terminate called after throwing an instance of 'std::system_error'
+  what():  Address already in use
+Sat May 10 23:46:11 2025
+ - INFO - http server create  socket on 0.0.0.0:8000
+terminate called without an active exception
+Sat May 10 23:47:03 2025
+ - INFO - http server create  socket on 0.0.0.0:8000
+terminate called without an active exception
