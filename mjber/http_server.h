@@ -200,10 +200,14 @@ void HttpServer::worker(HttpServer* p, std::shared_ptr<SocketWrapper> c_socket){
             std::shared_ptr<HttpRequest> request = std::make_shared<HttpRequest>();
             int r = httpsocket->readRequest(request);
             if(r == -1){
-                LOG_STREAM<<"in reed disconnect from: "<<c_socket->getIP()<<ERRORLOG;
+                LOG_STREAM<<"error in reed disconnect from: "<<c_socket->getIP()<<ERRORLOG;
                 return;
             }
-            LOG_STREAM<<"get url:"<<request->url<<"from "<<c_socket->getIP()<<INFOLOG;
+            if(r == 0){
+                LOG_STREAM<<"in reed disconnect from: "<<c_socket->getIP()<<DEBUGLOG;
+                return;
+            }
+            LOG_STREAM<<"fiber"<<std::to_string(Fiber::GetThis()->getID())<<"get url:"<<request->url<<"from "<<c_socket->getIP()<<INFOLOG;
 
             // 2.根据路由进行下一步的操作
             RouteHandler handler = p->routeTable.find(request->url);
@@ -215,7 +219,7 @@ void HttpServer::worker(HttpServer* p, std::shared_ptr<SocketWrapper> c_socket){
                 LOG_STREAM<<"in write disconnect from: "<<c_socket->getIP()<<ERRORLOG;
                 return;
             }
-            LOG_STREAM<<"return "<<res->m_reason<<" to "<<c_socket->getIP()<<INFOLOG;
+            LOG_STREAM<<std::to_string(Fiber::GetThis()->getID())<<"return "<<res->m_reason<<" to "<<c_socket->getIP()<<INFOLOG;
         }
     }catch(const std::exception& e){
         LOG_STREAM<<"in http work catch "<<e.what()<<" with "<<c_socket->getIP()<<ERRORLOG;
@@ -241,6 +245,7 @@ int HttpServer::setup(){
     serverSocket->listen();
     // 2.接收连接
     if(globalScheduler){  // 对于协程注册一个任务用来接收
+        LOG_STREAM<<"Server setup with fibers"<<INFOLOG;
         globalScheduler->addTask(accepter,this);
         std::string command;
         while(std::cin>>command){
@@ -249,6 +254,7 @@ int HttpServer::setup(){
     }
     else{                 // 否则以阻塞形式等待
         while(true){
+            LOG_STREAM<<"Server setup without fibers"<<INFOLOG;
             auto newClient =  serverSocket->accept();
             if(newClient==nullptr){
                 throw std::runtime_error("Failed to accept");
@@ -260,7 +266,7 @@ int HttpServer::setup(){
 
         }   
     }
-    
+    return 0;
 }
 
 
