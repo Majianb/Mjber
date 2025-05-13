@@ -48,6 +48,7 @@ public:
     // 工厂函数
     template <typename Fn, typename... Args>
     static ptr Create(Fn&& task, Args&&... args);
+    
     //
     template <typename Fn, typename... Args>
     Fiber(Fn&& task, Args&&... args); //子协程
@@ -55,6 +56,9 @@ public:
     // 析构函数
     ~Fiber();
 
+    // 重用协程
+    template <typename Fn, typename... Args>
+    void reuse(Fn&& task, Args&&... args);
     // 启动协程
     void start();
     // 恢复协程执行
@@ -135,6 +139,26 @@ Fiber::Fiber(Fn&& intask, Args&&... args):m_id(++s_Fiber_id){
 Fiber::~Fiber() {
     if(!m_stack) delete[] m_stack;
 }
+
+template <typename Fn, typename... Args>
+void Fiber::reuse(Fn&& intask, Args&&... args) {
+    // 包装函数
+    auto myfunc = std::bind(
+        std::forward<Fn>(intask), std::forward<Args>(args)...
+    );
+    m_task = myfunc;
+
+    m_ctx.funcPtr = reinterpret_cast<void*>(&Fiber::mainFunc);
+    m_ctx.firstIn = (void*)1;
+    m_ctx.ptr = this;
+
+    m_ctx.rsp = m_stack + m_stack_size - sizeof(void*);
+    m_state = FiberState::READY; //就绪
+}
+
+
+
+
 
 // 工厂函数
 template <typename Fn, typename... Args>
