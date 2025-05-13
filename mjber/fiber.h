@@ -225,9 +225,6 @@ void Fiber::mainFunc(Fiber* fiber) {
         if (fiber->m_task) {
             fiber->m_task();
         }
-        if (fiber->call_back){
-            fiber->call_back();
-        }
     }
     catch(const std::exception& e)
     {
@@ -237,7 +234,9 @@ void Fiber::mainFunc(Fiber* fiber) {
         ctx_swap(&(fiber->m_ctx),&(mainFiber->m_ctx));
     }
     
-
+    if (fiber->call_back){
+        fiber->call_back();
+    }
     fiber->m_state = FiberState::TERM;
     ctx_swap(&(fiber->m_ctx),&(mainFiber->m_ctx));
 }

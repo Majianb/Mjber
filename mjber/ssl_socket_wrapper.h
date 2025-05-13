@@ -32,14 +32,15 @@ public:
             ERR_free_strings();
         }
     };
-    static SSLInitializer ssl_initializer;
+    static std::shared_ptr<SSLInitializer> ssl_initializer;
 
     explicit SSLSocketWrapper(int fd, SSL* ssl,Type type, int domain,
             const std::string& crt_path = "./server.crt",
             const std::string& key_path="./server.key")
     :SocketWrapper(fd,type,domain),ssl(ssl){
-        ssl_initializer = SSLInitializer(crt_path,key_path);
-        if(ssl==nullptr) ssl = SSL_new(ssl_initializer.ssl_ctx);
+        if(ssl_initializer==nullptr)
+            ssl_initializer = std::make_shared<SSLInitializer>(crt_path,key_path);
+        if(ssl==nullptr) ssl = SSL_new(ssl_initializer->ssl_ctx);
         SSL_set_fd(ssl,fd_);
     }
     static std::shared_ptr<SSLSocketWrapper> Create();
@@ -52,6 +53,8 @@ private:
     SSL* ssl;
 
 };
+
+std::shared_ptr<SSLSocketWrapper::SSLInitializer> SSLSocketWrapper::ssl_initializer = nullptr;
 
 std::shared_ptr<SSLSocketWrapper> SSLSocketWrapper::accept(){
     if (type_ != Type::TCP) {
@@ -102,7 +105,7 @@ std::shared_ptr<SSLSocketWrapper> SSLSocketWrapper::accept(){
         client_port = ntohs(client_addr_in6->sin6_port);
     }
     // ssl设置
-    SSL* c_ssl = SSL_new(ssl_initializer.ssl_ctx);
+    SSL* c_ssl = SSL_new(ssl_initializer->ssl_ctx);
     SSL_set_fd(c_ssl, client_fd);
     // 执行TLS握手
     while(true){ 

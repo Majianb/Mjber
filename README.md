@@ -34,3 +34,5 @@ todo 出错处理
 - [ ] 出现了一个 - ERROR - epoll_wait error
 ### 2025-5-13
 - [x] ssl socket的实现
+
+- [ ] ERROR - epoll del error 9 terminate called after throwing an instance of 'std::runtime_error' what():  Failed to add event to epoll

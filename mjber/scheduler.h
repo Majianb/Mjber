@@ -291,10 +291,6 @@ public:
         if(fd_state != EpollRegitry.end()){
             EpollRegitry.erase(fd); 
         }
-        if (epoll_ctl(epollFd, EPOLL_CTL_DEL, fd,nullptr) == -1) {
-            LOG_STREAM<<"epoll del error "<<errno<<ERRORLOG;
-            throw std::runtime_error("Failed to add event to epoll");
-        }
     }
 
 private:

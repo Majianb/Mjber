@@ -193,7 +193,7 @@ int HttpServer::setRoute(std::vector<std::pair<std::string,RouteHandler>> url_ha
 void HttpServer::worker(HttpServer* p, std::shared_ptr<SocketWrapper> c_socket){
       
     try{
-        std::shared_ptr<HttpScoket> httpsocket = std::make_shared<HttpScoket>(c_socket);
+        std::shared_ptr<HttpSocket> httpsocket = std::make_shared<HttpSocket>(c_socket);
         while(true){
             
             // 1.先接收消息
